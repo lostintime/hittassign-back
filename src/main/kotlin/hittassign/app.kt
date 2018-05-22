@@ -3,6 +3,10 @@ package hittassign
 import kotlinx.coroutines.experimental.*
 import kotlin.system.exitProcess
 
+fun getGreeting(): String {
+    return "Hello, world!"
+}
+
 suspend fun executeApp(): Int {
     delay(1000L)
 
