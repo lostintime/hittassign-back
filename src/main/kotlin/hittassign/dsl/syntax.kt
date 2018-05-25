@@ -3,61 +3,63 @@ package hittassign.dsl
 import com.github.kittinunf.result.Result
 
 /**
- * String template data type, ex: https://foursquare/match/{c.long,c.lat}
- */
-typealias StringTpl = String
-
-/**
- * Specification for a value. Maybe constant or value (variable)
+ * Specification for a tpl. Maybe constant or tpl (variable)
  */
 sealed class ValSpec
 
 /**
  * Invalid bind key error
  */
-object InvalidBindKey : Exception()
+object InvalidValKey : Exception()
 
 /**
  * Value bind key name type (https://docs.oracle.com/cd/E19798-01/821-1841/bnbuk/index.html)
  */
-class BindKey private constructor(private val str: String) : CharSequence by str {
+class ValKey private constructor(private val str: String) : ValSpec(), CharSequence by str {
 
     override fun toString(): String = str
 
     companion object {
         /**
-         * Valid [BindKey] string Regex
+         * Valid [ValKey] string Regex
          */
         private val RE = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${'$'}]*$""")
 
         /**
-         * Returns true if [key] is a valid [BindKey] string
+         * Returns true if [key] is a valid [ValKey] string
          */
         private fun isValid(key: String): Boolean = RE.matches(key)
 
         /**
-         * Validate and create new [BindKey] instance from [key] string
+         * Validate and create new [ValKey] instance from [key] string
          */
-        fun of(key: String): Result<BindKey, InvalidBindKey> {
+        fun of(key: String): Result<ValKey, InvalidValKey> {
             return if (isValid(key)) {
-                Result.Success(BindKey(key))
+                Result.Success(ValKey(key))
             } else {
-                Result.Failure(InvalidBindKey)
+                Result.Failure(InvalidValKey)
             }
         }
     }
 }
 
 /**
- * Shorter name for [BindKey.of] builder
+ * Shorter name for [ValKey.of] builder
  */
-fun bindKey(str: String) = BindKey.of(str)
+fun valKey(str: String) = ValKey.of(str)
 
 typealias JsonPath = String
 
-data class BindSpec(val key: BindKey, val path: JsonPath) : ValSpec()
+data class ValPath(val key: ValKey, val path: JsonPath) : ValSpec()
 
-data class Const(val value: StringTpl) : ValSpec()
+// fun valPath(spec: String): Result<ValPath, InvalidValPath> = ...
+
+/**
+ * String template data type, ex: https://foursquare/match/{c.long,c.lat}
+ */
+data class StringTpl(val tpl: String) : ValSpec(), CharSequence by tpl
+
+// fun stringTpl(tpl: String): Result<StringTpl, InvalidStringTpl> = ...
 
 /**
  * Url type alias (for future refinements)
@@ -89,17 +91,9 @@ data class Download(val source: Url, val to: FilePath) : HitSyntax()
 /**
  * Iterate over values at given [path] while binding each to given [key]
  */
-data class Foreach(
-        val key: BindKey,
-        val path: BindSpec,
-        val statements: Statements
-) : HitSyntax()
+data class Foreach(val key: ValKey, val path: ValPath, val statements: Statements) : HitSyntax()
 
 /**
- * Fetch JSON from [source] and bind value to [key] variable
+ * Fetch JSON from [source] and bind tpl to [key] variable
  */
-data class Fetch(
-        val key: BindKey,
-        val source: Url,
-        val statements: Statements
-) : HitSyntax()
+data class Fetch(val key: ValKey, val source: Url, val statements: Statements) : HitSyntax()

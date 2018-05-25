@@ -6,7 +6,7 @@ sealed class HitLexeme
 
 object EndOfFile : HitLexeme()
 
-sealed class LexError: Exception()
+sealed class LexError : Exception()
 
 /**
  * Parses input string [str] into [HitLexeme] list

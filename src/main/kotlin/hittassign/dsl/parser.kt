@@ -10,17 +10,33 @@ sealed class ParseError : Exception()
 fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
     // TODO implement me
     return Result.Success(
-            Fetch(bindKey("h").get(), Const("https://hitta"), Statements(
-                    Foreach(bindKey("c").get(), BindSpec(bindKey("h").get(), "company.companies"), Statements(
-                            Fetch(BindKey.of("v").get(), Const("https://foursquare/match/{c.long,c.lat}"), Statements(
-                                    Fetch(BindKey.of("photo").get(), Const("https://foursquare/photos/{v.id}"), Statements(
-                                            Foreach(bindKey("p").get(), BindSpec(bindKey("photo").get(), "$"), Statements(
-                                                    Download(BindSpec(bindKey("p").get(), "url"), Const("/localpath/venue{c.id}/{p.name}")),
-                                                    Download(BindSpec(bindKey("p").get(), "url"), Const("/localpath/venue1{c.id}/{p.name}"))
-                                            ))
-                                    ))
-                            ))
-                    ))
-            ))
+        Fetch(
+            valKey("h").get(), StringTpl("https://hitta"), Statements(
+                Foreach(
+                    valKey("c").get(), ValPath(valKey("h").get(), "company.companies"), Statements(
+                        Fetch(
+                            ValKey.of("v").get(), StringTpl("https://foursquare/match/{c.long,c.lat}"), Statements(
+                                Fetch(
+                                    ValKey.of("photo").get(), StringTpl("https://foursquare/photos/{v.id}"), Statements(
+                                        Foreach(
+                                            valKey("p").get(), ValPath(valKey("photo").get(), "$"), Statements(
+                                                Download(
+                                                    ValPath(valKey("p").get(), "url"),
+                                                    StringTpl("/localpath/venue{c.id}/{p.name}")
+                                                ),
+                                                Download(
+                                                    ValPath(valKey("p").get(), "url"),
+                                                    StringTpl("/localpath/venue1{c.id}/{p.name}")
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
     )
 }

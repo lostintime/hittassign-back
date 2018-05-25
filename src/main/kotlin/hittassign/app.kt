@@ -1,27 +1,39 @@
 package hittassign
 
+import com.github.kittinunf.result.Result
 import com.github.kittinunf.result.flatMap
+import com.github.kittinunf.result.mapError
 import hittassign.dsl.lex
 import hittassign.dsl.parse
 import hittassign.runtime.RuntimeContext
+import hittassign.runtime.RuntimeError
 import hittassign.runtime.execute
 import kotlinx.coroutines.experimental.*
+import kotlin.system.exitProcess
 
+sealed class AppError : Exception() {
+    data class ParseError(val e: Exception) : AppError()
 
-fun main(args: Array<String>) = runBlocking {
-    val job = launch {
-        lex("").flatMap { parse(it) }.fold({
-            execute(it, RuntimeContext()).fold({
-                println("success")
+    data class ExecuteError(val e: RuntimeError) : AppError()
+}
+
+fun main(args: Array<String>) = runBlocking<Unit> {
+    val job = async {
+        // TODO: load script from source file or stdin
+        lex("")
+            .flatMap { parse(it) }
+            .fold({
+                execute(it, RuntimeContext()).mapError { AppError.ExecuteError(it) }
             }, {
-                println("Runtime failure: $it")
+                Result.Failure<Unit, AppError>(AppError.ParseError(it))
             })
-        }, {
-            println("Parse failure: $it")
-        })
     }
 
-    job.join()
-    println("done.")
-//    exitProcess(if (job.await() > 0) 0 else 1)
+    job.await().fold({
+        println("Success!")
+        exitProcess(0)
+    }, {
+        println("Failure: $it")
+        exitProcess(1)
+    })
 }
