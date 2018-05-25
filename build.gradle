@@ -24,12 +24,15 @@ mainClassName = 'hittassign.AppKt'
 defaultTasks 'run'
 
 repositories {
+    jcenter()
     mavenCentral()
 }
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     compile 'org.jetbrains.kotlinx:kotlinx-coroutines-core:0.22.5'
+    // https://github.com/kittinunf/Result
+    compile 'com.github.kittinunf.result:result:1.4.0'
     testCompile 'junit:junit:4.12'
     testCompile "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
 }

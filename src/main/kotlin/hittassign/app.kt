@@ -1,23 +1,27 @@
 package hittassign
 
+import com.github.kittinunf.result.flatMap
+import hittassign.dsl.lex
+import hittassign.dsl.parse
+import hittassign.runtime.RuntimeContext
+import hittassign.runtime.execute
 import kotlinx.coroutines.experimental.*
-import kotlin.system.exitProcess
 
-fun getGreeting(): String {
-    return "Hello, world!"
-}
 
-suspend fun executeApp(): Int {
-    delay(1000L)
-
-    return 42
-}
-
-fun main(args: Array<String>) {
-    runBlocking {
-        val result = async { executeApp() }
-
-        println("done. ${result.await()}")
-        exitProcess(if (result.await() > 0) 0 else 1)
+fun main(args: Array<String>) = runBlocking {
+    val job = launch {
+        lex("").flatMap { parse(it) }.fold({
+            execute(it, RuntimeContext()).fold({
+                println("success")
+            }, {
+                println("Runtime failure: $it")
+            })
+        }, {
+            println("Parse failure: $it")
+        })
     }
+
+    job.join()
+    println("done.")
+//    exitProcess(if (job.await() > 0) 0 else 1)
 }
