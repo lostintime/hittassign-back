@@ -207,8 +207,8 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
                         val job = acc.firstOrNull()
                         if (job != null) {
                             // await first task
+                            // TODO: stop execution if job failed, cancel already running jobs
                             job.await()
-                            // FIXME: stop all chain if task failed
                             acc.drop(1).plus(async { statements(foreach.statements, newCtx) })
                         } else {
                             acc.plus(async { statements(foreach.statements, newCtx) })
