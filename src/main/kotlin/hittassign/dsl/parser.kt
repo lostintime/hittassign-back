@@ -4,6 +4,25 @@ import com.github.kittinunf.result.Result
 
 sealed class ParseError : Exception()
 
+fun isValidValKey(key: String): Boolean = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${'$'}]*$""").matches(key)
+
+/**
+ * Invalid ValSpec value error
+ */
+object InvalidValPath : Exception()
+
+fun valPath(path: String): Result<ValSpec, InvalidValPath> {
+    val firstDot = path.indexOf('.')
+    val key = if (firstDot >= 0) path.substring(0, firstDot) else path
+    val jsonPath = if (firstDot >= 0) "\$${path.substring(firstDot)}" else "$"
+
+    return if (isValidValKey(key)) {
+        Result.Success(ValSpec(ValBind(key), jsonPath))
+    } else {
+        Result.Failure(InvalidValPath)
+    }
+}
+
 /**
  * Parse input lexemes list [lex] into AST
  */
@@ -11,22 +30,44 @@ fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
     // TODO implement me
     return Result.Success(
         Fetch(
-            valKey("h").get(), StringTpl("https://hitta"), Statements(
+            ValBind("h"), StringTpl(ConstStrPart("https://hitta")), Statements(
                 Foreach(
-                    valKey("c").get(), ValPath(valKey("h").get(), "company.companies"), Statements(
+                    ValBind("c"), ValSpec(ValBind("h"), "company.companies"), Statements(
                         Fetch(
-                            ValKey.of("v").get(), StringTpl("https://foursquare/match/{c.long,c.lat}"), Statements(
+                            ValBind("v"), // fetch into v
+                            StringTpl(
+                                ConstStrPart("https://foursquare/match/"),
+                                ValSpecPart(ValSpec(ValBind("c"), "long")),
+                                ConstStrPart(","),
+                                ValSpecPart(ValSpec(ValBind("c"), "lat"))
+                            ),
+                            Statements(
                                 Fetch(
-                                    ValKey.of("photo").get(), StringTpl("https://foursquare/photos/{v.id}"), Statements(
+                                    ValBind("photo"),
+                                    StringTpl(
+                                        ConstStrPart("https://foursquare/photos/"),
+                                        ValSpecPart(ValSpec(ValBind("v"), "id"))
+                                    ),
+                                    Statements(
                                         Foreach(
-                                            valKey("p").get(), ValPath(valKey("photo").get(), "$"), Statements(
+                                            ValBind("p"), ValSpec(ValBind("photo"), ""), Statements(
                                                 Download(
-                                                    ValPath(valKey("p").get(), "url"),
-                                                    StringTpl("/localpath/venue{c.id}/{p.name}")
+                                                    ValSpec(ValBind("p"), "url"),
+                                                    StringTpl(
+                                                        ConstStrPart("/localpath/venue"),
+                                                        ValSpecPart(ValSpec(ValBind("c"), "id")),
+                                                        ConstStrPart("/"),
+                                                        ValSpecPart(ValSpec(ValBind("p"), "name"))
+                                                    )
                                                 ),
                                                 Download(
-                                                    ValPath(valKey("p").get(), "url"),
-                                                    StringTpl("/localpath/venue1{c.id}/{p.name}")
+                                                    ValSpec(ValBind("p"), "url"),
+                                                    StringTpl(
+                                                        ConstStrPart("/localpath/venue"),
+                                                        ValSpecPart(ValSpec(ValBind("c"), "id")),
+                                                        ConstStrPart("/"),
+                                                        ValSpecPart(ValSpec(ValBind("p"), "name"))
+                                                    )
                                                 )
                                             )
                                         )
