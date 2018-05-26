@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class TestRuntimeContext {
     @Test
     fun `get String from root`() {
-        val context = RuntimeContext(
+        val ctx = RuntimeContext(
             mapOf(
                 ValBind("k") to JsonPath.parse("\"hello\"").json()
             )
@@ -18,14 +18,14 @@ class TestRuntimeContext {
 
         assertEquals(
             Result.Success("hello"),
-            context.getString(ValSpec(ValBind("k"), JsonPath.compile("$"))),
+            ctx.getString(ValSpec(ValBind("k"), JsonPath.compile("$"))),
             "json value extracted"
         )
     }
 
     @Test
     fun `get String from sub-path`() {
-        val context = RuntimeContext(
+        val ctx = RuntimeContext(
             mapOf(
                 ValBind("z") to JsonPath.parse(
                     """{
@@ -44,56 +44,72 @@ class TestRuntimeContext {
 
         assertEquals(
             Result.Success("John"),
-            context.getString(ValSpec(ValBind("z"), JsonPath.compile("$.name"))),
+            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.name"))),
             "got name from $.name"
         )
 
         assertEquals(
             Result.Success("London"),
-            context.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.name"))),
+            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.name"))),
             "got name from $.city.name"
         )
 
         assertEquals(
             Result.Success("123"),
-            context.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.id"))),
+            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.id"))),
             "got id from $.city.id"
         )
 
         assertEquals(
             Result.Success("45.6"),
-            context.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.size"))),
+            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.size"))),
             "got size from $.city.size"
         )
 
         assertEquals(
             Result.Failure(InvalidValBindType),
-            context.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city"))),
-            "unable get String at object path"
+            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city"))),
+            "unable get String at object source"
         )
 
         assertEquals(
             Result.Failure(InvalidValBindType),
-            context.getString(ValSpec(ValBind("z"), JsonPath.compile("$.items"))),
-            "unable get String at array path"
+            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.items"))),
+            "unable get String at array source"
         )
 
         assertEquals(
             Result.Failure(InvalidValBindType),
-            context.getString(ValSpec(ValBind("z"), JsonPath.compile("$.enabled"))),
-            "unable get String at boolean path"
+            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.enabled"))),
+            "unable get String at boolean source"
+        )
+    }
+
+    @Test
+    fun `get string from previous context`() {
+        val ctx = RuntimeContext(
+            mapOf(ValBind("z") to JsonPath.parse("\"z-value\"").json()),
+            RuntimeContext(
+                mapOf(ValBind("h") to JsonPath.parse("\"h-value\"").json())
+            )
+        )
+
+        assertEquals(
+            Result.Success("h-value"),
+            ctx.getString(ValSpec(ValBind("h"), JsonPath.compile("$"))),
+            "json value extracted from parent context"
         )
     }
 
     @Test
     fun `get Iterable from root`() {
-        val context = RuntimeContext(
+        val ctx = RuntimeContext(
             mapOf(
                 ValBind("k") to JsonPath.parse("[\"hello\", \"there\"]").json()
             )
         )
 
-        val items = context.getIterable<String>(ValSpec(ValBind("k"), JsonPath.compile("$")))
+        val items = ctx.getIterable<String>(ValSpec(ValBind("k"), JsonPath.compile("$")))
         assertTrue(items is Result.Success, "successfully loaded iterable for json array")
         val l = items.get().toList()
         assertTrue(l.size == 2)

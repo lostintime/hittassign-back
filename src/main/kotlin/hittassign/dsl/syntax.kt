@@ -15,7 +15,7 @@ data class ValBind(val name: String) : CharSequence by name {
 sealed class ValRef
 
 /**
- * Represents a path to a value, defined by key (variable name) and json path within that variable
+ * Represents a source to a value, defined by key (variable name) and json source within that variable
  */
 data class ValSpec(val key: ValBind, val path: JsonPath) : ValRef()
 
@@ -48,7 +48,7 @@ data class StringTpl(val parts: List<StringTplPart>) : ValRef() {
 typealias Url = ValRef
 
 /**
- * File path type alias (for future refinements)
+ * File source type alias (for future refinements)
  */
 typealias FilePath = ValRef
 
@@ -70,9 +70,9 @@ data class Statements(private val list: List<HitSyntax>) : HitSyntax(), List<Hit
 data class Download(val source: Url, val to: FilePath) : HitSyntax()
 
 /**
- * Iterate over values at given [path] while binding each to given [key]
+ * Iterate over values at given [source] while binding each to given [key]
  */
-data class Foreach(val key: ValBind, val path: ValSpec, val statements: Statements) : HitSyntax()
+data class Foreach(val key: ValBind, val source: ValSpec, val statements: Statements) : HitSyntax()
 
 /**
  * Fetch JSON from [source] and bind tpl to [key] variable

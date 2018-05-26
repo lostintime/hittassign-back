@@ -2,6 +2,7 @@ package hittassign.runtime
 
 import com.github.kittinunf.result.*
 import hittassign.dsl.*
+import kotlinx.coroutines.experimental.async
 
 /**
  * ADT defining errors happening on reading values from RuntimeContext
@@ -22,10 +23,10 @@ object InvalidValBindType : GetValError()
  * App execution context tree.
  * Contains bound values and exposes methods to retrieve them
  */
-data class RuntimeContext(private val values: Map<ValBind, Any> = mapOf(), val prev: RuntimeContext? = null) {
+data class RuntimeContext(private val values: Map<ValBind, Any> = mapOf(), private val parent: RuntimeContext? = null) {
     /**
      * Get value from values map
-     * @returns Result.Failure if value not found in map or at given path
+     * @returns Result.Failure if value not found in map or at given source
      */
     private fun <T : Any> getValue(spec: ValSpec): Result<T, GetValError> {
         val obj = values[spec.key]
@@ -39,7 +40,7 @@ data class RuntimeContext(private val values: Map<ValBind, Any> = mapOf(), val p
                     InvalidValBindType
                 }
         } else {
-            Result.Failure(ValBindNotFound)
+            parent?.getValue(spec) ?: Result.Failure(ValBindNotFound)
         }
     }
 
@@ -119,7 +120,7 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
  */
 private suspend fun download(download: Download, ctx: RuntimeContext): Result<Unit, RuntimeError> {
     println("execute download: $download")
-    // 1. resolve download url and file saving path
+    // 1. resolve download url and file saving source
     // 2. download content
     return Result.Success(Unit)
 }
@@ -128,24 +129,53 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
  * Executes [foreach] command, returns nothing
  */
 private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    println("execute foreach: $foreach")
     // 1. resolve iterable from current context
-    // 2. for each element - build new ctx and execute statements using it
-    return statements(foreach.statements, ctx)
+    return ctx.getIterable<Any>(foreach.source)
+        .fold({ values ->
+            val jobs = values
+                .map { value ->
+                    // 2. for each element - build new ctx and execute statements using it
+                    val newCtx = RuntimeContext(
+                        mapOf(foreach.key to value),
+                        ctx
+                    )
+
+                    async { statements(foreach.statements, newCtx) }
+                }
+                .map {
+                    it.await()
+                }
+
+            // 3. check for failed jobs to fail
+            jobs.find { it is Result.Failure } ?: Result.Success(Unit)
+        }, {
+            Result.Failure(ValueNotFound)
+        })
 }
 
 /**
  * Executes all given [statements], returns nothing
  */
 private suspend fun statements(statements: Statements, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    println("execute statements: $statements")
     // 1. execute all statements in parallel using current ctx
-    // 2. check for failed results to stop execution
-    for (s in statements) {
-        execute(s, ctx)
-    }
+    return statements
+        .map {
+            async { execute(it, ctx) }
+        }
+        .map {
+            it.await()
+        }
+        // 2. check for failed results to stop execution
+        .find { it is Result.Failure } ?: Result.Success(Unit)
+}
 
-    return Result.Success(Unit)
+/**
+ * Executes all statements sequentially
+ */
+private suspend fun statements_seq(statements: Statements, ctx: RuntimeContext): Result<Unit, RuntimeError> {
+    return statements
+        .map { execute(it, ctx) }
+        .find { it is Result.Failure } ?: Result.Success(Unit)
 }
 
 /**
