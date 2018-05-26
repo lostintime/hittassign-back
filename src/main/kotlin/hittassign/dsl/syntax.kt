@@ -7,7 +7,6 @@ data class ValBind(val name: String) : CharSequence by name {
     override fun toString(): String = name
 }
 
-
 /**
  * ADT Defining value to read. May be value reference or string template
  */

@@ -28,6 +28,8 @@ fun valPath(path: String): Result<ValSpec, InvalidValPath> {
  */
 fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
     // TODO implement me
+    val basePath = "/Users/vadim/projects/lostintime/hittassign-back/tmp/"
+
     return Result.Success(
         Fetch(
             ValBind("h"), StringTpl(ConstStrPart("https://hitta")), Statements(
@@ -54,7 +56,7 @@ fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
                                                 Download(
                                                     ValSpec(ValBind("p"), "url"),
                                                     StringTpl(
-                                                        ConstStrPart("/localpath/venue"),
+                                                        ConstStrPart(basePath),
                                                         ValSpecPart(ValSpec(ValBind("c"), "id")),
                                                         ConstStrPart("/"),
                                                         ValSpecPart(ValSpec(ValBind("p"), "name"))
@@ -63,7 +65,7 @@ fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
                                                 Download(
                                                     ValSpec(ValBind("p"), "url"),
                                                     StringTpl(
-                                                        ConstStrPart("/localpath/venue"),
+                                                        ConstStrPart(basePath),
                                                         ValSpecPart(ValSpec(ValBind("c"), "id")),
                                                         ConstStrPart("/"),
                                                         ValSpecPart(ValSpec(ValBind("p"), "name"))
