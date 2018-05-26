@@ -1,6 +1,9 @@
 package hittassign.runtime
 
+import awaitStringResult
+import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.result.*
+import com.jayway.jsonpath.JsonPath
 import hittassign.dsl.*
 import kotlinx.coroutines.experimental.async
 
@@ -103,16 +106,38 @@ sealed class RuntimeError : Exception()
 
 object ValueNotFound : RuntimeError()
 
+object FetchFailed : RuntimeError()
+
 /**
  * Executes [fetch] command, returns new context with bound value
  */
 private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    println("execute fetch: $fetch")
     // 1. resolve fetch url from current context
-    // 2. download and parse json from url
-    // 3. build new context using new tpl
-    val newCtx = RuntimeContext(mapOf(), ctx)
-    return statements(fetch.statements, newCtx)
+    val source = when (fetch.source) {
+        is ValSpec -> ctx.getString(fetch.source)
+        is StringTpl -> ctx.renderStringTpl(fetch.source)
+    }
+
+    return source.fold({ url ->
+        // 2. download and parse json from url
+        // println("fetch.url: $url")
+        val jsonStr = url.httpGet().awaitStringResult()
+
+        try {
+            // 3. build new context using fetched json
+            val jsonContext = JsonPath.parse(jsonStr)
+            // println("fetch.json: ${jsonContext.jsonString()}")
+            val newCtx = RuntimeContext(mapOf(fetch.key to jsonContext.json()), ctx)
+            // println("fetch.newCtx: $newCtx")
+            // execute child statements with new context
+            statements(fetch.statements, newCtx)
+        } catch (e: Exception) {
+            // println(e)
+            Result.Failure(FetchFailed)
+        }
+    }, {
+        Result.Failure(ValueNotFound)
+    })
 }
 
 /**
