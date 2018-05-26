@@ -37,31 +37,34 @@ fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
     val basePath = "/Users/vadim/projects/lostintime/hittassign-back/tmp/"
 
     return Result.Success(
-        Statements(
-            Debug(StringTpl(ConstStrPart("Hello there!!!! this is debug message"))),
-            Fetch(
-                ValBind("h"),
-                StringTpl(ConstStrPart("https://api.hitta.se/search/v7/app/combined/within/57.840703831916%3A11.728156448084002%2C57.66073920808401%3A11.908121071915998/?range.to=101&range.from=1&geo.hint=57.75072152%3A11.81813876&sort.order=relevance&query=lunch")),
-                Statements(
-                    Foreach(
-                        ValBind("c"),
-                        ValSpec(ValBind("h"), JsonPath.compile("$.result.companies.company")),
-                        Concurrently(
-                            Debug(
-                                StringTpl(
-                                    ConstStrPart("Company: "),
-                                    ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.id")))
-                                )
-                            ),
-                            Download(
-                                StringTpl(
-                                    // ConstStrPart("https://lostintimedev.com/about/")
-                                    ConstStrPart("https://www.hitta.se/")
+        Concurrently(
+            2,
+            Statements(
+                Debug(StringTpl(ConstStrPart("Hello there!!!! this is debug message"))),
+                Fetch(
+                    ValBind("h"),
+                    StringTpl(ConstStrPart("https://api.hitta.se/search/v7/app/combined/within/57.840703831916%3A11.728156448084002%2C57.66073920808401%3A11.908121071915998/?range.to=101&range.from=1&geo.hint=57.75072152%3A11.81813876&sort.order=relevance&query=lunch")),
+                    Statements(
+                        Foreach(
+                            ValBind("c"),
+                            ValSpec(ValBind("h"), JsonPath.compile("$.result.companies.company")),
+                            Statements(
+                                Debug(
+                                    StringTpl(
+                                        ConstStrPart("Company: "),
+                                        ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.id")))
+                                    )
                                 ),
-                                StringTpl(
-                                    ConstStrPart(basePath),
-                                    ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.id"))),
-                                    ConstStrPart(".html")
+                                Download(
+                                    StringTpl(
+                                        // ConstStrPart("https://lostintimedev.com/about/")
+                                        ConstStrPart("https://www.hitta.se/")
+                                    ),
+                                    StringTpl(
+                                        ConstStrPart(basePath),
+                                        ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.id"))),
+                                        ConstStrPart(".html")
+                                    )
                                 )
                             )
                         )

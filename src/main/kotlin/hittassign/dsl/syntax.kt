@@ -65,11 +65,9 @@ data class Statements(private val list: List<HitSyntax>) : HitSyntax(), List<Hit
 }
 
 /**
- * Execute statements concurrently
+ * Set concurrency level
  */
-data class Concurrently(private val list: List<HitSyntax>) : HitSyntax(), List<HitSyntax> by list {
-    constructor(vararg statements: HitSyntax) : this(listOf(*statements))
-}
+data class Concurrently(val level: Int, private val statements: List<HitSyntax>) : HitSyntax(), List<HitSyntax> by statements
 
 /**
  * Download source may be string template or data bind spec

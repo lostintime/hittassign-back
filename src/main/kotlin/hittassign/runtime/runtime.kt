@@ -7,6 +7,7 @@ import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.result.*
 import com.jayway.jsonpath.JsonPath
 import hittassign.dsl.*
+import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
 import java.io.File
 
@@ -29,7 +30,11 @@ object InvalidValBindType : GetValError()
  * App execution context tree.
  * Contains bound values and exposes methods to retrieve them
  */
-data class RuntimeContext(private val values: Map<ValBind, Any> = mapOf(), private val parent: RuntimeContext? = null) {
+data class RuntimeContext(
+    private val values: Map<ValBind, Any> = mapOf(),
+    private val parent: RuntimeContext? = null,
+    val concurrency: Int = 32 // just a magic number
+) {
     /**
      * Get value from values map
      * @returns Result.Failure if value not found in map or at given source
@@ -132,10 +137,10 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
             // 3. build new context using fetched json
             val jsonContext = JsonPath.parse(jsonStr)
             // println("fetch.json: ${jsonContext.jsonString()}")
-            val newCtx = RuntimeContext(mapOf(fetch.key to jsonContext.json()), ctx)
+            val newCtx = ctx.copy(values = mapOf(fetch.key to jsonContext.json()))
             // println("fetch.newCtx: $newCtx")
             // execute child concurrently with new context
-            concurrently(fetch.statements, newCtx)
+            return statements(fetch.statements, newCtx)
         } catch (e: Exception) {
             // println(e)
             Result.Failure(FetchFailed)
@@ -192,15 +197,25 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
     return ctx.getIterable<Any>(foreach.source)
         .fold({ values ->
             val jobs = values
-                .map { value ->
-                    // 2. for each element - build new ctx and execute concurrently using it
-                    val newCtx = RuntimeContext(
-                        mapOf(foreach.key to value),
-                        ctx
-                    )
-
-                    async { concurrently(foreach.statements, newCtx) }
-                }
+                // 2. for each element - build new ctx and execute concurrently using it
+                .map { ctx.copy(values = mapOf(foreach.key to it)) }
+                // execute tasks
+                .fold(emptyList<Deferred<Result<Unit, RuntimeError>>>(), { acc, newCtx ->
+                    if (acc.size < newCtx.concurrency) {
+                        acc.plus(async { statements(foreach.statements, newCtx) })
+                    } else {
+                        val job = acc.firstOrNull()
+                        if (job != null) {
+                            // await first task
+                            println("Await first task")
+                            val result = job.await()
+                            // FIXME: stop all chain if task failed
+                            acc.drop(1).plus(async { statements(foreach.statements, newCtx) })
+                        } else {
+                            acc.plus(async { statements(foreach.statements, newCtx) })
+                        }
+                    }
+                })
                 .map {
                     it.await()
                 }
@@ -212,36 +227,53 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
         })
 }
 
+private suspend fun concurrently(script: Concurrently, ctx: RuntimeContext) =
+    statements(script, ctx.copy(concurrency = script.level))
+
+
 /**
- * Executes all [statements] concurrently, returns nothing
+ * Executes all [list] concurrently, returns nothing
  */
-private suspend fun concurrently(statements: List<HitSyntax>, ctx: RuntimeContext): Result<Unit, RuntimeError> {
+private suspend fun statements(list: List<HitSyntax>, ctx: RuntimeContext): Result<Unit, RuntimeError> {
     // 1. execute all concurrently in parallel using current ctx
-    return statements
-        .map {
-            async { execute(it, ctx) }
-        }
+    return list
+        .fold(emptyList<Deferred<Result<Unit, RuntimeError>>>(), { acc, s ->
+            if (acc.size < ctx.concurrency) {
+                acc.plus(async { execute(s, ctx) })
+            } else {
+                for (j in acc) {
+                    // await one, and add one more
+                    println("Await one task to be done")
+                    j.await()
+                    break
+                }
+
+                acc.plus(async { execute(s, ctx) })
+            }
+        })
         .map {
             it.await()
         }
         // 2. check for failed results to stop execution
         .find { it is Result.Failure } ?: Result.Success(Unit)
-}
 
-/**
- * Executes all statements sequentially
- */
-private suspend fun sequentially(statements: List<HitSyntax>, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    return statements
-        .map { execute(it, ctx) }
-        .find { it is Result.Failure } ?: Result.Success(Unit)
+//    // 1. execute all concurrently in parallel using current ctx
+//    return list
+//        .map {
+//            async { execute(it, ctx) }
+//        }
+//        .map {
+//            it.await()
+//        }
+//        // 2. check for failed results to stop execution
+//        .find { it is Result.Failure } ?: Result.Success(Unit)
 }
 
 /**
  * Prints debug message
  */
-private fun debug(dbg: Debug, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    return ctx.renderStringTpl(dbg.message)
+private fun debug(script: Debug, ctx: RuntimeContext): Result<Unit, RuntimeError> {
+    return ctx.renderStringTpl(script.message)
         .map {
             println(it)
         }
@@ -257,7 +289,7 @@ suspend fun execute(script: HitSyntax, ctx: RuntimeContext): Result<Unit, Runtim
     is Fetch -> fetch(script, ctx)
     is Download -> download(script, ctx)
     is Foreach -> foreach(script, ctx)
-    is Statements -> sequentially(script, ctx)
     is Concurrently -> concurrently(script, ctx)
+    is Statements -> statements(script, ctx)
     is Debug -> debug(script, ctx)
 }
