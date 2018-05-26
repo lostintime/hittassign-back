@@ -44,11 +44,24 @@ fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
                 StringTpl(ConstStrPart("https://api.hitta.se/search/v7/app/combined/within/57.840703831916%3A11.728156448084002%2C57.66073920808401%3A11.908121071915998/?range.to=101&range.from=1&geo.hint=57.75072152%3A11.81813876&sort.order=relevance&query=lunch")),
                 Statements(
                     Foreach(
-                        ValBind("c"), ValSpec(ValBind("h"), JsonPath.compile("$.result.companies.company")), Statements(
+                        ValBind("c"),
+                        ValSpec(ValBind("h"), JsonPath.compile("$.result.companies.company")),
+                        Concurrently(
                             Debug(
                                 StringTpl(
                                     ConstStrPart("Company: "),
                                     ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.id")))
+                                )
+                            ),
+                            Download(
+                                StringTpl(
+                                    // ConstStrPart("https://lostintimedev.com/about/")
+                                    ConstStrPart("https://www.hitta.se/")
+                                ),
+                                StringTpl(
+                                    ConstStrPart(basePath),
+                                    ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.id"))),
+                                    ConstStrPart(".html")
                                 )
                             )
                         )

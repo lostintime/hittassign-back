@@ -1,11 +1,14 @@
 package hittassign.runtime
 
+import awaitResponse
 import awaitStringResult
+import com.github.kittinunf.fuel.httpDownload
 import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.result.*
 import com.jayway.jsonpath.JsonPath
 import hittassign.dsl.*
 import kotlinx.coroutines.experimental.async
+import java.io.File
 
 /**
  * ADT defining errors happening on reading values from RuntimeContext
@@ -108,6 +111,8 @@ object ValueNotFound : RuntimeError()
 
 object FetchFailed : RuntimeError()
 
+object DownloadFailed : RuntimeError()
+
 /**
  * Executes [fetch] command, returns new context with bound value
  */
@@ -129,8 +134,8 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
             // println("fetch.json: ${jsonContext.jsonString()}")
             val newCtx = RuntimeContext(mapOf(fetch.key to jsonContext.json()), ctx)
             // println("fetch.newCtx: $newCtx")
-            // execute child statements with new context
-            statements(fetch.statements, newCtx)
+            // execute child concurrently with new context
+            concurrently(fetch.statements, newCtx)
         } catch (e: Exception) {
             // println(e)
             Result.Failure(FetchFailed)
@@ -144,10 +149,39 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
  * Executes [download] command, returns nothing
  */
 private suspend fun download(download: Download, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    println("execute download: $download")
-    // 1. resolve download url and file saving source
-    // 2. download content
-    return Result.Success(Unit)
+    try {
+        // 1. resolve download url and file saving source
+        val source = when (download.source) {
+            is ValSpec -> ctx.getString(download.source)
+            is StringTpl -> ctx.renderStringTpl(download.source)
+        }
+
+        val destination = when (download.to) {
+            is ValSpec -> ctx.getString(download.to)
+            is StringTpl -> ctx.renderStringTpl(download.to)
+        }
+
+        return source
+            .flatMap { s -> destination.map { d -> Pair(s, d) } }
+            .fold({ p ->
+                val src = p.first
+                val dest = p.second
+
+                // 2. download and parse json from url
+                val result = src
+                    .httpDownload()
+                    .destination { _, _ -> File(dest) }
+                    .awaitResponse()
+
+                return result.third
+                    .map { }
+                    .mapError { DownloadFailed }
+            }, {
+                Result.Failure(ValueNotFound)
+            })
+    } catch (e: Exception) {
+        return Result.Failure(DownloadFailed)
+    }
 }
 
 /**
@@ -159,13 +193,13 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
         .fold({ values ->
             val jobs = values
                 .map { value ->
-                    // 2. for each element - build new ctx and execute statements using it
+                    // 2. for each element - build new ctx and execute concurrently using it
                     val newCtx = RuntimeContext(
                         mapOf(foreach.key to value),
                         ctx
                     )
 
-                    async { statements(foreach.statements, newCtx) }
+                    async { concurrently(foreach.statements, newCtx) }
                 }
                 .map {
                     it.await()
@@ -179,10 +213,10 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
 }
 
 /**
- * Executes all given [statements], returns nothing
+ * Executes all [statements] concurrently, returns nothing
  */
-private suspend fun statements(statements: Statements, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    // 1. execute all statements in parallel using current ctx
+private suspend fun concurrently(statements: List<HitSyntax>, ctx: RuntimeContext): Result<Unit, RuntimeError> {
+    // 1. execute all concurrently in parallel using current ctx
     return statements
         .map {
             async { execute(it, ctx) }
@@ -197,7 +231,7 @@ private suspend fun statements(statements: Statements, ctx: RuntimeContext): Res
 /**
  * Executes all statements sequentially
  */
-private suspend fun statements_seq(statements: Statements, ctx: RuntimeContext): Result<Unit, RuntimeError> {
+private suspend fun sequentially(statements: List<HitSyntax>, ctx: RuntimeContext): Result<Unit, RuntimeError> {
     return statements
         .map { execute(it, ctx) }
         .find { it is Result.Failure } ?: Result.Success(Unit)
@@ -223,6 +257,7 @@ suspend fun execute(script: HitSyntax, ctx: RuntimeContext): Result<Unit, Runtim
     is Fetch -> fetch(script, ctx)
     is Download -> download(script, ctx)
     is Foreach -> foreach(script, ctx)
-    is Statements -> statements(script, ctx)
+    is Statements -> sequentially(script, ctx)
+    is Concurrently -> concurrently(script, ctx)
     is Debug -> debug(script, ctx)
 }

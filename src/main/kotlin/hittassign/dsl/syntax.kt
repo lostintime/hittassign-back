@@ -58,9 +58,16 @@ typealias FilePath = ValRef
 sealed class HitSyntax
 
 /**
- * Represents a sequence of HitSyntax statements
+ * Represents a sequence of HitSyntax concurrently
  */
 data class Statements(private val list: List<HitSyntax>) : HitSyntax(), List<HitSyntax> by list {
+    constructor(vararg statements: HitSyntax) : this(listOf(*statements))
+}
+
+/**
+ * Execute statements concurrently
+ */
+data class Concurrently(private val list: List<HitSyntax>) : HitSyntax(), List<HitSyntax> by list {
     constructor(vararg statements: HitSyntax) : this(listOf(*statements))
 }
 
@@ -72,12 +79,12 @@ data class Download(val source: Url, val to: FilePath) : HitSyntax()
 /**
  * Iterate over values at given [source] while binding each to given [key]
  */
-data class Foreach(val key: ValBind, val source: ValSpec, val statements: Statements) : HitSyntax()
+data class Foreach(val key: ValBind, val source: ValSpec, val statements: List<HitSyntax>) : HitSyntax()
 
 /**
  * Fetch JSON from [source] and bind tpl to [key] variable
  */
-data class Fetch(val key: ValBind, val source: Url, val statements: Statements) : HitSyntax()
+data class Fetch(val key: ValBind, val source: Url, val statements: List<HitSyntax>) : HitSyntax()
 
 /**
  * Print debug message
