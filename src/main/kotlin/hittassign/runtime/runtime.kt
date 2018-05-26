@@ -207,8 +207,7 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
                         val job = acc.firstOrNull()
                         if (job != null) {
                             // await first task
-                            println("Await first task")
-                            val result = job.await()
+                            job.await()
                             // FIXME: stop all chain if task failed
                             acc.drop(1).plus(async { statements(foreach.statements, newCtx) })
                         } else {
@@ -243,7 +242,7 @@ private suspend fun statements(list: List<HitSyntax>, ctx: RuntimeContext): Resu
             } else {
                 for (j in acc) {
                     // await one, and add one more
-                    println("Await one task to be done")
+                    // FIXME: stop sequence if failed
                     j.await()
                     break
                 }
