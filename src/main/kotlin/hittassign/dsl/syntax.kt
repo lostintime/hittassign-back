@@ -1,5 +1,7 @@
 package hittassign.dsl
 
+import com.jayway.jsonpath.JsonPath
+
 /**
  * Value bind name type - Defines name of the variable to bind value to
  */
@@ -11,11 +13,6 @@ data class ValBind(val name: String) : CharSequence by name {
  * ADT Defining value to read. May be value reference or string template
  */
 sealed class ValRef
-
-/**
- * JSON Path string type alias
- */
-typealias JsonPath = String
 
 /**
  * Represents a path to a value, defined by key (variable name) and json path within that variable
@@ -81,3 +78,8 @@ data class Foreach(val key: ValBind, val path: ValSpec, val statements: Statemen
  * Fetch JSON from [source] and bind tpl to [key] variable
  */
 data class Fetch(val key: ValBind, val source: Url, val statements: Statements) : HitSyntax()
+
+/**
+ * Print debug message
+ */
+data class Debug(val message: StringTpl) : HitSyntax()

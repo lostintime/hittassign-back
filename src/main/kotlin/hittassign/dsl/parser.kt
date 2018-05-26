@@ -1,6 +1,9 @@
 package hittassign.dsl
 
 import com.github.kittinunf.result.Result
+import com.github.kittinunf.result.map
+import com.github.kittinunf.result.mapError
+import com.jayway.jsonpath.JsonPath
 
 sealed class ParseError : Exception()
 
@@ -17,7 +20,10 @@ fun valPath(path: String): Result<ValSpec, InvalidValPath> {
     val jsonPath = if (firstDot >= 0) "\$${path.substring(firstDot)}" else "$"
 
     return if (isValidValKey(key)) {
-        Result.Success(ValSpec(ValBind(key), jsonPath))
+        Result
+            .of { JsonPath.compile(jsonPath) }
+            .mapError { InvalidValPath }
+            .map { ValSpec(ValBind(key), it) }
     } else {
         Result.Failure(InvalidValPath)
     }
@@ -31,44 +37,69 @@ fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
     val basePath = "/Users/vadim/projects/lostintime/hittassign-back/tmp/"
 
     return Result.Success(
-        Fetch(
-            ValBind("h"), StringTpl(ConstStrPart("https://hitta")), Statements(
-                Foreach(
-                    ValBind("c"), ValSpec(ValBind("h"), "company.companies"), Statements(
-                        Fetch(
-                            ValBind("v"), // fetch into v
-                            StringTpl(
-                                ConstStrPart("https://foursquare/match/"),
-                                ValSpecPart(ValSpec(ValBind("c"), "long")),
-                                ConstStrPart(","),
-                                ValSpecPart(ValSpec(ValBind("c"), "lat"))
-                            ),
-                            Statements(
-                                Fetch(
-                                    ValBind("photo"),
-                                    StringTpl(
-                                        ConstStrPart("https://foursquare/photos/"),
-                                        ValSpecPart(ValSpec(ValBind("v"), "id"))
-                                    ),
-                                    Statements(
-                                        Foreach(
-                                            ValBind("p"), ValSpec(ValBind("photo"), ""), Statements(
-                                                Download(
-                                                    ValSpec(ValBind("p"), "url"),
-                                                    StringTpl(
-                                                        ConstStrPart(basePath),
-                                                        ValSpecPart(ValSpec(ValBind("c"), "id")),
-                                                        ConstStrPart("/"),
-                                                        ValSpecPart(ValSpec(ValBind("p"), "name"))
-                                                    )
-                                                ),
-                                                Download(
-                                                    ValSpec(ValBind("p"), "url"),
-                                                    StringTpl(
-                                                        ConstStrPart(basePath),
-                                                        ValSpecPart(ValSpec(ValBind("c"), "id")),
-                                                        ConstStrPart("/"),
-                                                        ValSpecPart(ValSpec(ValBind("p"), "name"))
+        Statements(
+            Debug(StringTpl(ConstStrPart("Hello there!!!! this is debug message"))),
+            Fetch(
+                ValBind("h"), StringTpl(ConstStrPart("https://hitta")), Statements(
+                    Foreach(
+                        ValBind("c"), ValSpec(ValBind("h"), JsonPath.compile("$.company.companies")), Statements(
+                            Fetch(
+                                ValBind("v"), // fetch into v
+                                StringTpl(
+                                    ConstStrPart("https://foursquare/match/"),
+                                    ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.long"))),
+                                    ConstStrPart(","),
+                                    ValSpecPart(ValSpec(ValBind("c"), JsonPath.compile("$.lat")))
+                                ),
+                                Statements(
+                                    Fetch(
+                                        ValBind("photo"),
+                                        StringTpl(
+                                            ConstStrPart("https://foursquare/photos/"),
+                                            ValSpecPart(ValSpec(ValBind("v"), JsonPath.compile("$.id")))
+                                        ),
+                                        Statements(
+                                            Foreach(
+                                                ValBind("p"),
+                                                ValSpec(ValBind("photo"), JsonPath.compile("$")),
+                                                Statements(
+                                                    Download(
+                                                        ValSpec(ValBind("p"), JsonPath.compile("$.url")),
+                                                        StringTpl(
+                                                            ConstStrPart(basePath),
+                                                            ValSpecPart(
+                                                                ValSpec(
+                                                                    ValBind("c"),
+                                                                    JsonPath.compile("$.id")
+                                                                )
+                                                            ),
+                                                            ConstStrPart("/"),
+                                                            ValSpecPart(
+                                                                ValSpec(
+                                                                    ValBind("p"),
+                                                                    JsonPath.compile("$.name")
+                                                                )
+                                                            )
+                                                        )
+                                                    ),
+                                                    Download(
+                                                        ValSpec(ValBind("p"), JsonPath.compile("$.url")),
+                                                        StringTpl(
+                                                            ConstStrPart(basePath),
+                                                            ValSpecPart(
+                                                                ValSpec(
+                                                                    ValBind("c"),
+                                                                    JsonPath.compile("$.id")
+                                                                )
+                                                            ),
+                                                            ConstStrPart("/"),
+                                                            ValSpecPart(
+                                                                ValSpec(
+                                                                    ValBind("p"),
+                                                                    JsonPath.compile("$.name")
+                                                                )
+                                                            )
+                                                        )
                                                     )
                                                 )
                                             )

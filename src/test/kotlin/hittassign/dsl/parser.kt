@@ -45,19 +45,19 @@ class TestJsonPath {
 }
 
 class TestValPath {
-    @Test
-    fun `can be built from valid strings`() {
-        assertEquals(valPath("a"), Result.Success(ValSpec(ValBind("a"), "\$")))
-        assertEquals(valPath("a.b.c"), Result.Success(ValSpec(ValBind("a"), "\$.b.c")))
-        assertEquals(valPath("v.items[0].name"), Result.Success(ValSpec(ValBind("v"), "\$.items[0].name")))
-    }
-
-    @Test
-    fun `cannot be built from invalid strings()`() {
-        assertEquals(valPath(""), Result.Failure(InvalidValPath), "ValSpec cannot be empty")
-        assertEquals(valPath("a b c.items[0]"), Result.Failure(InvalidValPath), "ValBind cannot contain spaces")
-        assertEquals(valPath("var/one.a.b.c.list[10].item"), Result.Failure(InvalidValPath), "ValBind cannot contain /")
-    }
+//    @Test
+//    fun `can be built from valid strings`() {
+//        assertEquals(valPath("a"), Result.Success(ValSpec(ValBind("a"), "\$")))
+//        assertEquals(valPath("a.b.c"), Result.Success(ValSpec(ValBind("a"), "\$.b.c")))
+//        assertEquals(valPath("v.items[0].name"), Result.Success(ValSpec(ValBind("v"), "\$.items[0].name")))
+//    }
+//
+//    @Test
+//    fun `cannot be built from invalid strings()`() {
+//        assertEquals(valPath(""), Result.Failure(InvalidValPath), "ValSpec cannot be empty")
+//        assertEquals(valPath("a b c.items[0]"), Result.Failure(InvalidValPath), "ValBind cannot contain spaces")
+//        assertEquals(valPath("var/one.a.b.c.list[10].item"), Result.Failure(InvalidValPath), "ValBind cannot contain /")
+//    }
 }
 
 class TestStringTpl {
