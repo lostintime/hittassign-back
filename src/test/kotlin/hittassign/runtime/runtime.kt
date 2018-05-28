@@ -66,21 +66,27 @@ class TestRuntimeContext {
             "got size from $.city.size"
         )
 
+        // JsonPath doesn't implement equals, using same instance
+        val p1 = JsonPath.compile("$.city")
         assertEquals(
-            Result.Failure(InvalidValBindType),
-            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city"))),
+            Result.Failure(InvalidValBindType(ValBind("z"), p1)),
+            ctx.getString(ValSpec(ValBind("z"), p1)),
             "unable get String at object source"
         )
 
+        // JsonPath doesn't implement equals, using same instance
+        val p2 = JsonPath.compile("$.items")
         assertEquals(
-            Result.Failure(InvalidValBindType),
-            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.items"))),
+            Result.Failure(InvalidValBindType(ValBind("z"), p2)),
+            ctx.getString(ValSpec(ValBind("z"), p2)),
             "unable get String at array source"
         )
 
+        // JsonPath doesn't implement equals, using same instance
+        val p3 = JsonPath.compile("$.enabled")
         assertEquals(
-            Result.Failure(InvalidValBindType),
-            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.enabled"))),
+            Result.Failure(InvalidValBindType(ValBind("z"), p3)),
+            ctx.getString(ValSpec(ValBind("z"), p3)),
             "unable get String at boolean source"
         )
     }
@@ -136,18 +142,21 @@ class TestRuntimeContext {
             "StringTpl  rendered successfully"
         )
 
+        // JsonPath doesn't implement equals, using same instance
+        val p1 = JsonPath.compile("$.surname")
+
         assertEquals(
-            Result.Failure<String, GetValError>(InvalidValBindType),
+            Result.Failure<String, GetValError>(InvalidValBindType(ValBind("a"), p1)),
             ctx.renderStringTpl(
                 StringTpl(
                     ConstStrPart("Hola "),
-                    ValSpecPart(ValSpec(ValBind("a"), JsonPath.compile("$.surname")))
+                    ValSpecPart(ValSpec(ValBind("a"), p1))
                 )
             )
         )
 
         assertEquals(
-            Result.Failure<String, GetValError>(ValBindNotFound),
+            Result.Failure<String, GetValError>(ValBindNotFound(ValBind("b"))),
             ctx.renderStringTpl(
                 StringTpl(
                     ConstStrPart("Hola "),

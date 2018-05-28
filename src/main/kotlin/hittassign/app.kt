@@ -30,10 +30,9 @@ fun main(args: Array<String>) = runBlocking<Unit> {
     }
 
     job.await().fold({
-        println("Success!")
         exitProcess(0)
     }, {
-        println("Failure: $it")
+        println("Error: $it")
         exitProcess(1)
     })
 }
