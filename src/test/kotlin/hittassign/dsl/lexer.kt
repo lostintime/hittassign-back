@@ -27,9 +27,8 @@ class TestLex {
 
     @Test
     fun `it reads basic symbols`() {
-        // FIXME: line reading not completed for last line (no line break)
         assertEquals(
-            Result.Success(listOf(HitLexeme.Symbol("debug"))),
+            Result.Success(listOf(HitLexeme.Symbol("debug"), HitLexeme.Newline)),
             lex("debug"),
             "simple symbol parsed"
         )

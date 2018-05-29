@@ -93,8 +93,12 @@ sealed class SymbolReader {
 sealed class LineReader {
     abstract fun read(c: Char): LineReader
 
+    abstract fun finish(): LineReader
+
     object Empty : LineReader() {
         override fun read(c: Char): LineReader = OnIdent(IdentReader.Empty).read(c)
+
+        override fun finish(): LineReader = Done(emptyList())
     }
 
     data class OnIdent(val ident: IdentReader) : LineReader() {
@@ -112,6 +116,8 @@ sealed class LineReader {
                 }
             }
         }
+
+        override fun finish(): LineReader = Done(emptyList())
     }
 
     data class OnSymbol(val tokens: List<HitLexeme>, val sym: SymbolReader) : LineReader() {
@@ -130,14 +136,27 @@ sealed class LineReader {
                 }
             }
         }
+
+        override fun finish(): LineReader {
+            return when (sym) {
+                is SymbolReader.Empty -> Done(tokens)
+                is SymbolReader.Reading -> Done(tokens + HitLexeme.Symbol(sym.symbol))
+                is SymbolReader.Done -> Done(tokens + HitLexeme.Symbol(sym.symbol))
+                is SymbolReader.DoneEmpty -> Done(tokens + HitLexeme.Newline)
+            }
+        }
     }
 
     data class Done(val tokens: List<HitLexeme>) : LineReader() {
         override fun read(c: Char): LineReader = this
+
+        override fun finish(): LineReader = this
     }
 
     object Invalid : LineReader() {
         override fun read(c: Char): LineReader = this
+
+        override fun finish(): LineReader = this
     }
 
     companion object {
@@ -170,15 +189,12 @@ sealed class LexReader {
         }
 
         override fun finish(): LexReader {
+            val line = line.finish()
+
             return when (line) {
                 is LineReader.Empty -> Success(tokens)
                 is LineReader.OnIdent -> Success(tokens)
-                is LineReader.OnSymbol -> when (line.sym) {
-                    is SymbolReader.Empty -> Success(tokens)
-                    is SymbolReader.Reading -> Success(tokens + HitLexeme.Symbol(line.sym.symbol) + HitLexeme.Newline)
-                    is SymbolReader.Done -> Success(tokens + HitLexeme.Symbol(line.sym.symbol) + HitLexeme.Newline)
-                    is SymbolReader.DoneEmpty -> Success(tokens + HitLexeme.Newline)
-                }
+                is LineReader.OnSymbol -> Invalid
                 is LineReader.Invalid -> Invalid
                 is LineReader.Done -> Success(tokens + line.tokens + HitLexeme.Newline)
             }
