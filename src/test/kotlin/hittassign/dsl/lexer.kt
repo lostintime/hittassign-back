@@ -39,6 +39,28 @@ class TestLex {
     fun `it parses multiple lines`() {
         val script = "one\ntwo\nthree\n"
 
-        println(lex(script))
+        assertEquals(
+            Result.Success(
+                listOf(
+                    HitLexeme.Symbol("one"),
+                    HitLexeme.Newline,
+                    HitLexeme.Symbol("two"),
+                    HitLexeme.Newline,
+                    HitLexeme.Symbol("three"),
+                    HitLexeme.Newline
+                )
+            ),
+            lex(script)
+        )
+    }
+
+    @Test
+    fun `it parses last line`() {
+        val script = "doit"
+
+        assertEquals(
+            Result.Success(listOf(HitLexeme.Symbol("doit"), HitLexeme.Newline)),
+            lex(script)
+        )
     }
 }

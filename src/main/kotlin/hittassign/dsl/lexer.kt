@@ -25,7 +25,7 @@ sealed class IdentReader {
         override fun read(c: Char): IdentReader = when (c) {
             ' ' -> Reading(1)
             '\t' -> Reading(2)
-            else -> Done(0)
+            else -> DoneEmpty
         }
     }
 
@@ -38,6 +38,10 @@ sealed class IdentReader {
     }
 
     data class Done(val len: Int) : IdentReader() {
+        override fun read(c: Char): IdentReader = this
+    }
+
+    object DoneEmpty : IdentReader() {
         override fun read(c: Char): IdentReader = this
     }
 }
@@ -56,15 +60,15 @@ sealed class SymbolReader {
         }
     }
 
-    data class Reading(val sym: String) : SymbolReader() {
+    data class Reading(val symbol: String) : SymbolReader() {
         override fun read(c: Char): SymbolReader = if (isSymbolChar(c)) {
-            Reading(sym + c)
+            Reading(symbol + c)
         } else {
-            Done(sym)
+            Done(symbol)
         }
     }
 
-    data class Done(val sym: String) : SymbolReader() {
+    data class Done(val symbol: String) : SymbolReader() {
         override fun read(c: Char): SymbolReader = this
     }
 
@@ -98,31 +102,31 @@ sealed class LineReader {
             return if (isLineBreak(c)) {
                 Done(emptyList()) // ignoring ident
             } else {
-                val ident = IdentReader.Empty.read(c)
+                val ident = ident.read(c)
                 when (ident) {
                     is IdentReader.Empty -> OnIdent(ident) // continue reading
                     is IdentReader.Reading -> OnIdent(ident) // continue reading
-                    is IdentReader.Done ->
-                        // ident is done on line break or symbol start
-                        OnSymbol(listOf(HitLexeme.Ident(ident.len)), SymbolReader.Empty).read(c)
+                // ident is done on line break or symbol start
+                    is IdentReader.Done -> OnSymbol(listOf(HitLexeme.Ident(ident.len)), SymbolReader.Empty).read(c)
+                    is IdentReader.DoneEmpty -> OnSymbol(emptyList(), SymbolReader.Empty).read(c)
                 }
             }
         }
     }
 
-    data class OnSymbol(val prev: List<HitLexeme>, val acc: SymbolReader) : LineReader() {
+    data class OnSymbol(val tokens: List<HitLexeme>, val sym: SymbolReader) : LineReader() {
         override fun read(c: Char): LineReader {
-            val sym = acc.read(c)
+            val sym = sym.read(c)
 
             return when (sym) {
-                is SymbolReader.Empty -> if (isLineBreak(c)) Done(prev) else OnSymbol(prev, acc)
+                is SymbolReader.Empty -> if (isLineBreak(c)) Done(tokens) else OnSymbol(tokens, sym)
             // this shouldn't happen, symbol reading should finish on line break
-                is SymbolReader.Reading -> if (isLineBreak(c)) Invalid else OnSymbol(prev, acc)
-                is SymbolReader.DoneEmpty -> if (isLineBreak(c)) Done(prev) else OnSymbol(prev, SymbolReader.Empty)
+                is SymbolReader.Reading -> if (isLineBreak(c)) Invalid else OnSymbol(tokens, sym)
+                is SymbolReader.DoneEmpty -> if (isLineBreak(c)) Done(tokens) else OnSymbol(tokens, SymbolReader.Empty)
                 is SymbolReader.Done -> if (isLineBreak(c)) {
-                    Done(prev + HitLexeme.Symbol(sym.sym))
+                    Done(tokens + HitLexeme.Symbol(sym.symbol))
                 } else {
-                    OnSymbol(prev + HitLexeme.Symbol(sym.sym), SymbolReader.Empty)
+                    OnSymbol(tokens + HitLexeme.Symbol(sym.symbol), SymbolReader.Empty)
                 }
             }
         }
@@ -144,28 +148,47 @@ sealed class LineReader {
 sealed class LexReader {
     abstract fun read(c: Char): LexReader
 
+    abstract fun finish(): LexReader
+
     data class Success(val tokens: List<HitLexeme>) : LexReader() {
         override fun read(c: Char): LexReader = OnLine(tokens, LineReader.Empty).read(c)
+
+        override fun finish(): LexReader = this
     }
 
     data class OnLine(val tokens: List<HitLexeme>, val line: LineReader) : LexReader() {
         override fun read(c: Char): LexReader {
-            val l = line.read(c)
-            return when (l) {
+            val line = line.read(c)
+
+            return when (line) {
                 is LineReader.Empty -> OnLine(tokens, line)
                 is LineReader.OnIdent -> OnLine(tokens, line)
                 is LineReader.OnSymbol -> OnLine(tokens, line)
                 is LineReader.Invalid -> Invalid
-                is LineReader.Done -> {
-                    println("Line parsed: $tokens")
-                    Success(tokens + l.tokens + HitLexeme.Newline)
+                is LineReader.Done -> Success(tokens + line.tokens + HitLexeme.Newline)
+            }
+        }
+
+        override fun finish(): LexReader {
+            return when (line) {
+                is LineReader.Empty -> Success(tokens)
+                is LineReader.OnIdent -> Success(tokens)
+                is LineReader.OnSymbol -> when (line.sym) {
+                    is SymbolReader.Empty -> Success(tokens)
+                    is SymbolReader.Reading -> Success(tokens + HitLexeme.Symbol(line.sym.symbol) + HitLexeme.Newline)
+                    is SymbolReader.Done -> Success(tokens + HitLexeme.Symbol(line.sym.symbol) + HitLexeme.Newline)
+                    is SymbolReader.DoneEmpty -> Success(tokens + HitLexeme.Newline)
                 }
+                is LineReader.Invalid -> Invalid
+                is LineReader.Done -> Success(tokens + line.tokens + HitLexeme.Newline)
             }
         }
     }
 
     object Invalid : LexReader() {
         override fun read(c: Char): LexReader = this
+
+        override fun finish(): LexReader = this
     }
 
     companion object {
@@ -177,7 +200,7 @@ sealed class LexReader {
  * Parses input string [str] into [HitLexeme] list
  */
 fun lex(str: String): Result<List<HitLexeme>, LexError> {
-    val acc = str.fold<LexReader>(LexReader.Empty, { acc, c -> acc.read(c) })
+    val acc = str.fold<LexReader>(LexReader.Empty, { acc, c -> acc.read(c) }).finish()
 
     return when (acc) {
         is LexReader.Success -> Result.Success(acc.tokens)
