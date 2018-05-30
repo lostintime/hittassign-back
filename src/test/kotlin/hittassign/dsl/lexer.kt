@@ -4,31 +4,52 @@ import com.github.kittinunf.result.Result
 import org.junit.Test
 import kotlin.test.assertEquals
 
-class TestLex {
+class TestLexReader {
     @Test
     fun `it reads empty string`() {
         assertEquals(Result.Success(emptyList()), lex(""), "empty string parsed as empty Lexeme list")
     }
 
     @Test
-    fun `newline parsed as Newline lexeme`() {
+    fun `it ignores space-only lines`() {
         assertEquals(
-            Result.Success(listOf(HitLexeme.Newline)),
-            lex("\n"),
-            "newline parsed ot Newline lexeme"
+            Result.Success(emptyList()),
+            lex("   \n   \n   "),
+            "empty lines or space-only lines ignored"
         )
+    }
 
+    @Test
+    fun `ignores empty lines`() {
         assertEquals(
-            Result.Success(listOf(HitLexeme.Newline, HitLexeme.Newline)),
-            lex("\n\n"),
-            "newline parsed ot Newline lexeme"
+            Result.Success(
+                listOf(
+                    HitLexeme.Symbol("one"),
+                    HitLexeme.Symbol("two"),
+                    HitLexeme.Symbol("three")
+                )
+            ),
+            lex("one\n\n   \ntwo\nthree\n")
+        )
+    }
+
+    @Test
+    fun `ignores trailing space`() {
+        assertEquals(
+            Result.Success(
+                listOf(
+                    HitLexeme.Symbol("one"),
+                    HitLexeme.Symbol("two")
+                )
+            ),
+            lex("one       \n\n   \ntwo\n\n")
         )
     }
 
     @Test
     fun `it reads basic symbols`() {
         assertEquals(
-            Result.Success(listOf(HitLexeme.Symbol("debug"), HitLexeme.Newline)),
+            Result.Success(listOf(HitLexeme.Symbol("debug"))),
             lex("debug"),
             "simple symbol parsed"
         )
@@ -42,11 +63,8 @@ class TestLex {
             Result.Success(
                 listOf(
                     HitLexeme.Symbol("one"),
-                    HitLexeme.Newline,
                     HitLexeme.Symbol("two"),
-                    HitLexeme.Newline,
-                    HitLexeme.Symbol("three"),
-                    HitLexeme.Newline
+                    HitLexeme.Symbol("three")
                 )
             ),
             lex(script)
@@ -58,7 +76,24 @@ class TestLex {
         val script = "doit"
 
         assertEquals(
-            Result.Success(listOf(HitLexeme.Symbol("doit"), HitLexeme.Newline)),
+            Result.Success(listOf(HitLexeme.Symbol("doit"))),
+            lex(script)
+        )
+    }
+
+    @Test
+    fun `it parses idents`() {
+        val script = "line1\n  line2\n"
+
+        assertEquals(
+            Result.Success(
+                listOf(
+                    HitLexeme.Symbol("line1"),
+                    HitLexeme.Ident,
+                    HitLexeme.Symbol("line2"),
+                    HitLexeme.Dedent
+                )
+            ),
             lex(script)
         )
     }
