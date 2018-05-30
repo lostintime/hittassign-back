@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import org.junit.Test
 
 
-class TestValKey {
+class TestParse {
 //    @Test
 //    fun `can be built from valid strings`() {
 //        assertTrue(valKey("one") is Result.Success, "\"one\" is valid ValBind")

@@ -17,6 +17,7 @@ object LexError : Exception()
 
 /**
  * Ident reading state machine
+ * Invalid idents will be shifted left (ex: 3 -> 2)
  */
 sealed class IdentReader {
     abstract fun read(c: Char): IdentReader
@@ -24,7 +25,7 @@ sealed class IdentReader {
     object Empty : IdentReader() {
         override fun read(c: Char): IdentReader = when (c) {
             ' ' -> Reading(1)
-            '\t' -> Reading(2)
+            '\t' -> Reading(2) // tabs weight = 2
             else -> DoneEmpty
         }
     }
@@ -32,8 +33,8 @@ sealed class IdentReader {
     data class Reading(val len: Int) : IdentReader() {
         override fun read(c: Char): IdentReader = when (c) {
             ' ' -> Reading(len + 1)
-            '\t' -> Reading(len + 2)
-            else -> Done(len)
+            '\t' -> Reading(len + 2) // tabs weight = 2
+            else -> Done(if ((len % 2) == 1) len - 1 else len) // auo-fixing ident by shifting left
         }
     }
 
