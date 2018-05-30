@@ -1,6 +1,9 @@
 package hittassign.dsl
 
 import com.github.kittinunf.result.Result
+import com.github.kittinunf.result.Result.Failure
+import com.github.kittinunf.result.Result.Success
+import com.github.kittinunf.result.flatMap
 import com.github.kittinunf.result.map
 import com.github.kittinunf.result.mapError
 import com.jayway.jsonpath.JsonPath
@@ -14,14 +17,15 @@ fun isValidValKey(key: String): Boolean = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${
  */
 object InvalidValPath : Exception()
 
-sealed class ParseResult {
-    data class Success(val script: HitSyntax, val tail: List<HitLexeme>) : ParseResult()
+/**
+ * Partial parse result
+ */
+data class Parsed(val script: HitSyntax, val tail: List<HitLexeme>)
 
-    object Failure : ParseResult()
-}
+typealias ParseResult = Result<Parsed, ParseError>
 
 private fun valBind(s: String): Result<ValBind, ParseError> {
-    return Result.Success(ValBind(s))
+    return Success(ValBind(s))
 }
 
 /**
@@ -31,67 +35,91 @@ private fun valRef(s: String): Result<ValRef, ParseError> {
     return stringTpl(s)
 }
 
+private fun valSpec(s: String): Result<ValSpec, ParseError> {
+    return Result.Success(ValSpec(ValBind(s), JsonPath.compile("$")))
+}
+
 private fun stringTpl(s: String): Result<StringTpl, ParseError> {
-    return Result.Success(StringTpl(ConstStrPart(s)))
+    return Success(StringTpl(ConstStrPart(s)))
 }
 
+private fun expectSymbol(l: HitLexeme?): Result<HitLexeme.Symbol, ParseError> {
+    return when (l) {
+        is HitLexeme.Symbol -> Success(l)
+        else -> Failure(ParseError("Symbol expected at .."))
+    }
+}
+
+/**
+ * Parse debug statement
+ */
 private fun debug(lex: List<HitLexeme>): ParseResult {
-    val msg = lex.firstOrNull()
-
-    return when (msg) {
-        is HitLexeme.Symbol -> {
-            val m = stringTpl(msg.sym)
-
-            when (m) {
-                is Result.Success -> ParseResult.Success(Debug(m.value), lex.drop(1))
-                is Result.Failure -> ParseResult.Failure // Failed to parse string pl
-            }
+    return expectSymbol(lex.firstOrNull())
+        .flatMap { stringTpl(it.sym) }
+        .map { msg ->
+            Parsed(Debug(msg), lex.drop(1))
         }
-        else -> ParseResult.Failure // Symbol expected at ..
-    }
 }
 
+/**
+ * Parse fetch statement
+ */
 private fun fetch(lex: List<HitLexeme>): ParseResult {
-    val bind = lex.firstOrNull()
-    return when (bind) {
-        is HitLexeme.Symbol -> {
-            val name = valBind(bind.sym)
-            when (name) {
-                is Result.Success -> {
-                    val source = lex.drop(1).firstOrNull()
-                    when (source) {
-                        is HitLexeme.Symbol -> {
-                            val url = stringTpl(source.sym)
-                            when (url) {
-                                is Result.Success -> {
-                                    val body = block(emptyList(), lex.drop(2))
-                                    when (body) {
-                                        is ParseResult.Success -> ParseResult.Success(
-                                            Fetch(name.value, url.value, body.script),
-                                            body.tail
-                                        )
-                                        is ParseResult.Failure -> body
-                                    }
-                                }
-                                is Result.Failure -> ParseResult.Failure // ValSpec
-                            }
+    return expectSymbol(lex.firstOrNull())
+        .flatMap { valBind(it.sym) }
+        .flatMap { bind ->
+            expectSymbol(lex.drop(1).firstOrNull())
+                .flatMap { valRef(it.sym) }
+                .flatMap { source ->
+                    block(emptyList(), lex.drop(2))
+                        .map { block ->
+                            Parsed(
+                                Fetch(bind, source, block.script),
+                                block.tail
+                            )
                         }
-                        else -> ParseResult.Failure // Symbol expected at ..
-                    }
                 }
-                is Result.Failure -> ParseResult.Failure
-            }
         }
-        else -> ParseResult.Failure // Symbol expected at ..
-    }
+
 }
 
+/**
+ * Parse foreach statement
+ */
 private fun foreach(lex: List<HitLexeme>): ParseResult {
-    TODO("not implemented")
+    return expectSymbol(lex.firstOrNull())
+        .flatMap { valBind(it.sym) }
+        .flatMap { bind ->
+            expectSymbol(lex.drop(1).firstOrNull())
+                .flatMap { valSpec(it.sym) }
+                .flatMap { source ->
+                    block(emptyList(), lex.drop(2))
+                        .map { block ->
+                            Parsed(
+                                Foreach(bind, source, block.script),
+                                block.tail
+                            )
+                        }
+                }
+        }
 }
 
+/**
+ * Parse download statement
+ */
 private fun download(lex: List<HitLexeme>): ParseResult {
-    TODO("not implemented")
+    return expectSymbol(lex.firstOrNull())
+        .flatMap { valRef(it.sym) }
+        .flatMap { src ->
+            expectSymbol(lex.drop(1).firstOrNull())
+                .flatMap { valRef(it.sym) }
+                .map { dest ->
+                    Parsed(
+                        Download(src, dest),
+                        lex.drop(2)
+                    )
+                }
+        }
 }
 
 /**
@@ -99,29 +127,29 @@ private fun download(lex: List<HitLexeme>): ParseResult {
  */
 tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseResult {
     return if (lex.isEmpty()) {
-        ParseResult.Success(Statements(script), emptyList())
+        Success(Parsed(Statements(script), emptyList()))
     } else {
         val head = lex.firstOrNull()
         val tail = lex.drop(1)
 
         when (head) {
-            null -> ParseResult.Success(Statements(script), emptyList())
+            null -> Success(Parsed(Statements(script), emptyList()))
             is HitLexeme.Symbol -> {
                 val s = when (head.sym.toLowerCase()) {
                     "debug" -> debug(tail)
                     "fetch" -> fetch(tail)
-                    "foreach" -> fetch(tail)
-                    "download" -> fetch(tail)
-                    else -> ParseResult.Failure //
+                    "foreach" -> foreach(tail)
+                    "download" -> download(tail)
+                    else -> Failure(ParseError("Unknown symbol \"$head.sym\"")) //
                 }
 
                 return when (s) {
-                    is ParseResult.Success -> block(script + s.script, s.tail)
-                    is ParseResult.Failure -> s
+                    is Success -> block(script + s.value.script, s.value.tail)
+                    else -> s
                 }
             }
-            HitLexeme.Ident -> ParseResult.Failure
-            HitLexeme.Dedent -> ParseResult.Success(Statements(script), tail)
+            HitLexeme.Ident -> Failure(ParseError("Unexpected Ident at .."))
+            HitLexeme.Dedent -> Success(Parsed(Statements(script), tail))
         }
     }
 }
@@ -130,19 +158,14 @@ tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseResult {
  * Parse input lexemes list [lex] into AST
  */
 fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
-    val b = block(emptyList(), lex)
-
-    return when (b) {
-        is ParseResult.Success -> Result.Success(b.script)
-        is ParseResult.Failure -> Result.Failure(ParseError("Something went wrong"))
-    }
+    return block(emptyList(), lex).map { it.script }
 }
 
 fun demo(): Result<HitSyntax, ParseError> {
     // TODO implement me
     val basePath = "/Users/vadim/projects/lostintime/hittassign-back/tmp/"
 
-    return Result.Success(
+    return Success(
         Concurrently(
             2,
             Statements(
@@ -192,7 +215,7 @@ fun valPath(path: String): Result<ValSpec, InvalidValPath> {
             .mapError { InvalidValPath }
             .map { ValSpec(ValBind(key), it) }
     } else {
-        Result.Failure(InvalidValPath)
+        Failure(InvalidValPath)
     }
 }
 

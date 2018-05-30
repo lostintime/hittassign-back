@@ -1,6 +1,7 @@
 package hittassign.dsl
 
 import com.github.kittinunf.result.Result
+import com.jayway.jsonpath.JsonPath
 import kotlin.test.assertEquals
 import org.junit.Test
 import kotlin.test.assertTrue
@@ -16,7 +17,7 @@ class TestDslParser {
     }
 
     @Test
-    fun `debug parsed successfully`() {
+    fun `parse debug`() {
         assertEquals(
             Result.Success(Statements(Debug(StringTpl(ConstStrPart("hello"))))),
             parse(listOf(HitLexeme.Symbol("debug"), HitLexeme.Symbol("hello")))
@@ -24,7 +25,7 @@ class TestDslParser {
     }
 
     @Test
-    fun `fetch parsed successfully`() {
+    fun `parse fetch`() {
         assertEquals(
             Result.Success(
                 Statements(
@@ -37,9 +38,52 @@ class TestDslParser {
             ),
             parse(
                 listOf(
-                    HitLexeme.Symbol("foreach"),
+                    HitLexeme.Symbol("fetch"),
                     HitLexeme.Symbol("n"),
                     HitLexeme.Symbol("http://test.com/api.json")
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `parse foreach`() {
+        assertEquals(
+            Result.Success(
+                Statements(
+                    Foreach(
+                        ValBind("n"),
+                        ValSpec(ValBind("u"), JsonPath.compile("$")),
+                        Statements()
+                    )
+                )
+            ),
+            parse(
+                listOf(
+                    HitLexeme.Symbol("foreach"),
+                    HitLexeme.Symbol("n"),
+                    HitLexeme.Symbol("u")
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `parse download`() {
+        assertEquals(
+            Result.Success(
+                Statements(
+                    Download(
+                        StringTpl(ConstStrPart("https://google.com")),
+                        StringTpl(ConstStrPart("/tmp/google-com.txt"))
+                    )
+                )
+            ),
+            parse(
+                listOf(
+                    HitLexeme.Symbol("download"),
+                    HitLexeme.Symbol("https://google.com"),
+                    HitLexeme.Symbol("/tmp/google-com.txt")
                 )
             )
         )
