@@ -6,10 +6,19 @@ import com.github.kittinunf.result.Result
  * Language lexemes ADT
  */
 sealed class HitLexeme {
+    /**
+     * Ident token means child block start (like '{')
+     */
     object Ident : HitLexeme()
 
+    /**
+     * Dedent token means child block end (like '}')
+     */
     object Dedent : HitLexeme()
 
+    /**
+     * Symbol token is non whitespace string
+     */
     data class Symbol(val sym: String) : HitLexeme() // symbol or string literal
 }
 
