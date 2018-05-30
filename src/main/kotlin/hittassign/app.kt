@@ -3,6 +3,7 @@ package hittassign
 import com.github.kittinunf.result.Result
 import com.github.kittinunf.result.flatMap
 import com.github.kittinunf.result.mapError
+import hittassign.dsl.demo
 import hittassign.dsl.lex
 import hittassign.dsl.parse
 import hittassign.runtime.RuntimeContext
@@ -20,8 +21,8 @@ sealed class AppError : Exception() {
 fun main(args: Array<String>) = runBlocking<Unit> {
     val job = async {
         // TODO: load script from source file or stdin
-        lex("")
-            .flatMap { parse(it) }
+//        lex("").flatMap { parse(it) }
+        demo()
             .fold({
                 execute(it, RuntimeContext()).mapError { AppError.ExecuteError(it) }
             }, {

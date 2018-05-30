@@ -14,31 +14,62 @@ fun isValidValKey(key: String): Boolean = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${
  */
 object InvalidValPath : Exception()
 
+sealed class DebugParser
 
+sealed class ForeachParser
+
+sealed class FetchParser
+
+sealed class DownloadParser
+
+sealed class ConcurrentlyParser
+
+/**
+ * Block parser
+ * Strips ident from lexemes stream and passes parsing back to Statement parser
+ */
 sealed class BlockParser {
     data class Empty(val depth: Int) : BlockParser()
+
+    data class Success(val depth: Int, val script: List<HitSyntax>) : BlockParser()
+
+    object Failure : BlockParser()
 }
 
 /**
- * Language parser state machine
+ * DSL parser state machine
  */
-sealed class HitParser {
-    abstract fun parse(l: HitLexeme): HitParser
+sealed class DslParser {
+    abstract fun parse(l: HitLexeme): DslParser
 
-    /**
-     * Initial parser state: got only empty lines or not script
-     */
-    object Empty : HitParser() {
-        override fun parse(l: HitLexeme): HitParser {
+    abstract fun finish(): DslParser
+
+    object Empty : DslParser() {
+        override fun parse(l: HitLexeme): DslParser {
+            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        }
+
+        override fun finish(): DslParser {
             TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         }
     }
 
-    /**
-     * Successfully parsed
-     */
-    data class Success(val script: HitSyntax) : HitParser() {
-        override fun parse(l: HitLexeme): HitParser {
+    data class Success(val script: HitSyntax) : DslParser() {
+        override fun parse(l: HitLexeme): DslParser {
+            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        }
+
+        override fun finish(): DslParser {
+            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        }
+    }
+
+    object Failure : DslParser() {
+        override fun parse(l: HitLexeme): DslParser {
+            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        }
+
+        override fun finish(): DslParser {
             TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
         }
     }
@@ -48,8 +79,9 @@ sealed class HitParser {
  * Parse input lexemes list [lex] into AST
  */
 fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
+    lex.fold<HitLexeme, DslParser>(DslParser.Empty, { acc, c -> acc.parse(c) }).finish()
 
-
+    // TODO check parser status
     return demo()
 }
 
