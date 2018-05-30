@@ -14,63 +14,114 @@ fun isValidValKey(key: String): Boolean = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${
  */
 object InvalidValPath : Exception()
 
-sealed class DebugParser
+sealed class ParseResult {
+    data class Success(val script: HitSyntax, val tail: List<HitLexeme>) : ParseResult()
 
-sealed class ForeachParser
+    object Failure : ParseResult()
+}
 
-sealed class FetchParser
-
-sealed class DownloadParser
-
-sealed class ConcurrentlyParser
-
-/**
- * Block parser
- * Strips ident from lexemes stream and passes parsing back to Statement parser
- */
-sealed class BlockParser {
-    data class Empty(val depth: Int) : BlockParser()
-
-    data class Success(val depth: Int, val script: List<HitSyntax>) : BlockParser()
-
-    object Failure : BlockParser()
+private fun valBind(s: String): Result<ValBind, ParseError> {
+    return Result.Success(ValBind(s))
 }
 
 /**
- * DSL parser state machine
+ * Parse ValRef from string
  */
-sealed class DslParser {
-    abstract fun parse(l: HitLexeme): DslParser
+private fun valRef(s: String): Result<ValRef, ParseError> {
+    return stringTpl(s)
+}
 
-    abstract fun finish(): DslParser
+private fun stringTpl(s: String): Result<StringTpl, ParseError> {
+    return Result.Success(StringTpl(ConstStrPart(s)))
+}
 
-    object Empty : DslParser() {
-        override fun parse(l: HitLexeme): DslParser {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+private fun debug(lex: List<HitLexeme>): ParseResult {
+    val msg = lex.firstOrNull()
+
+    return when (msg) {
+        is HitLexeme.Symbol -> {
+            val m = stringTpl(msg.sym)
+
+            when (m) {
+                is Result.Success -> ParseResult.Success(Debug(m.value), lex.drop(1))
+                is Result.Failure -> ParseResult.Failure // Failed to parse string pl
+            }
         }
-
-        override fun finish(): DslParser {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        }
+        else -> ParseResult.Failure // Symbol expected at ..
     }
+}
 
-    data class Success(val script: HitSyntax) : DslParser() {
-        override fun parse(l: HitLexeme): DslParser {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+private fun fetch(lex: List<HitLexeme>): ParseResult {
+    val bind = lex.firstOrNull()
+    return when (bind) {
+        is HitLexeme.Symbol -> {
+            val name = valBind(bind.sym)
+            when (name) {
+                is Result.Success -> {
+                    val source = lex.drop(1).firstOrNull()
+                    when (source) {
+                        is HitLexeme.Symbol -> {
+                            val url = stringTpl(source.sym)
+                            when (url) {
+                                is Result.Success -> {
+                                    val body = block(emptyList(), lex.drop(2))
+                                    when (body) {
+                                        is ParseResult.Success -> ParseResult.Success(
+                                            Fetch(name.value, url.value, body.script),
+                                            body.tail
+                                        )
+                                        is ParseResult.Failure -> body
+                                    }
+                                }
+                                is Result.Failure -> ParseResult.Failure // ValSpec
+                            }
+                        }
+                        else -> ParseResult.Failure // Symbol expected at ..
+                    }
+                }
+                is Result.Failure -> ParseResult.Failure
+            }
         }
-
-        override fun finish(): DslParser {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        }
+        else -> ParseResult.Failure // Symbol expected at ..
     }
+}
 
-    object Failure : DslParser() {
-        override fun parse(l: HitLexeme): DslParser {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        }
+private fun foreach(lex: List<HitLexeme>): ParseResult {
+    TODO("not implemented")
+}
 
-        override fun finish(): DslParser {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+private fun download(lex: List<HitLexeme>): ParseResult {
+    TODO("not implemented")
+}
+
+/**
+ * Parses block content until Dedent or EOF
+ */
+tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseResult {
+    return if (lex.isEmpty()) {
+        ParseResult.Success(Statements(script), emptyList())
+    } else {
+        val head = lex.firstOrNull()
+        val tail = lex.drop(1)
+
+        when (head) {
+            null -> ParseResult.Success(Statements(script), emptyList())
+            is HitLexeme.Symbol -> {
+                val s = when (head.sym.toLowerCase()) {
+                    "debug" -> debug(tail)
+                    "fetch" -> fetch(tail)
+                    "foreach" -> fetch(tail)
+                    "download" -> fetch(tail)
+                    else -> ParseResult.Failure //
+                }
+
+                return when (s) {
+                    is ParseResult.Success -> block(script + s.script, s.tail)
+                    is ParseResult.Failure -> s
+                }
+            }
+            HitLexeme.Ident -> ParseResult.Failure
+            HitLexeme.Dedent -> ParseResult.Success(Statements(script), tail)
         }
     }
 }
@@ -79,10 +130,12 @@ sealed class DslParser {
  * Parse input lexemes list [lex] into AST
  */
 fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
-    lex.fold<HitLexeme, DslParser>(DslParser.Empty, { acc, c -> acc.parse(c) }).finish()
+    val b = block(emptyList(), lex)
 
-    // TODO check parser status
-    return demo()
+    return when (b) {
+        is ParseResult.Success -> Result.Success(b.script)
+        is ParseResult.Failure -> Result.Failure(ParseError("Something went wrong"))
+    }
 }
 
 fun demo(): Result<HitSyntax, ParseError> {

@@ -3,9 +3,77 @@ package hittassign.dsl
 import com.github.kittinunf.result.Result
 import kotlin.test.assertEquals
 import org.junit.Test
+import kotlin.test.assertTrue
 
 
-class TestParse {
+class TestDslParser {
+    @Test
+    fun `empty lex parses successfully`() {
+        assertEquals(
+            Result.Success(Statements()),
+            parse(emptyList())
+        )
+    }
+
+    @Test
+    fun `debug parsed successfully`() {
+        assertEquals(
+            Result.Success(Statements(Debug(StringTpl(ConstStrPart("hello"))))),
+            parse(listOf(HitLexeme.Symbol("debug"), HitLexeme.Symbol("hello")))
+        )
+    }
+
+    @Test
+    fun `fetch parsed successfully`() {
+        assertEquals(
+            Result.Success(
+                Statements(
+                    Fetch(
+                        ValBind("n"),
+                        StringTpl(ConstStrPart("http://test.com/api.json")),
+                        Statements()
+                    )
+                )
+            ),
+            parse(
+                listOf(
+                    HitLexeme.Symbol("foreach"),
+                    HitLexeme.Symbol("n"),
+                    HitLexeme.Symbol("http://test.com/api.json")
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `multiple statements parsed successfully`() {
+        assertEquals(
+            Result.Success(
+                Statements(
+                    Debug(StringTpl(ConstStrPart("hello"))),
+                    Debug(StringTpl(ConstStrPart("there"))),
+                    Debug(StringTpl(ConstStrPart("!")))
+                )
+            ),
+            parse(
+                listOf(
+                    HitLexeme.Symbol("debug"), HitLexeme.Symbol("hello"),
+                    HitLexeme.Symbol("debug"), HitLexeme.Symbol("there"),
+                    HitLexeme.Symbol("debug"), HitLexeme.Symbol("!")
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `fails to parse unknown statement`() {
+        assertTrue(
+            parse(listOf(HitLexeme.Symbol("aloha"))) is Result.Failure
+        )
+    }
+
+}
+
 //    @Test
 //    fun `can be built from valid strings`() {
 //        assertTrue(valKey("one") is Result.Success, "\"one\" is valid ValBind")
@@ -38,7 +106,6 @@ class TestParse {
 //        assertEquals(ValBind.of("one").get(), ValBind.of("one").get())
 //        assertNotEquals(ValBind.of("one").get(), ValBind.of("two").get())
 //    }
-}
 
 class TestJsonPath {
     // TODO add JsonPath validation
