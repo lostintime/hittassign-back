@@ -67,7 +67,7 @@ data class Statements(private val list: List<HitSyntax>) : HitSyntax(), List<Hit
 /**
  * Set concurrency level
  */
-data class Concurrently(val level: Int, private val statements: List<HitSyntax>) : HitSyntax(), List<HitSyntax> by statements
+data class Concurrently(val level: Int, val script: HitSyntax) : HitSyntax()
 
 /**
  * Download source may be string template or data bind spec
@@ -77,12 +77,12 @@ data class Download(val source: Url, val to: FilePath) : HitSyntax()
 /**
  * Iterate over values at given [source] while binding each to given [key]
  */
-data class Foreach(val key: ValBind, val source: ValSpec, val statements: List<HitSyntax>) : HitSyntax()
+data class Foreach(val key: ValBind, val source: ValSpec, val script: HitSyntax) : HitSyntax()
 
 /**
  * Fetch JSON from [source] and bind tpl to [key] variable
  */
-data class Fetch(val key: ValBind, val source: Url, val statements: List<HitSyntax>) : HitSyntax()
+data class Fetch(val key: ValBind, val source: Url, val script: HitSyntax) : HitSyntax()
 
 /**
  * Print debug message

@@ -131,7 +131,7 @@ data class FileDownloadError(val source: Url, val to: FilePath) : RuntimeError()
  * Executes [fetch] command:
  *  - Loads Json from [Fetch.source]
  *  - Bind Json to [Fetch.key] within new [RuntimeContext]
- *  - Executes all [Fetch.statements] using new [RuntimeContext]
+ *  - Executes all [Fetch.script] using new [RuntimeContext]
  */
 private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, RuntimeError> {
     // 1. resolve fetch url from current context
@@ -142,7 +142,6 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
 
     return source.fold({ url ->
         // 2. download and parse json from url
-        // println("fetch.url: $url")
         val jsonStr = url.httpGet().awaitStringResult()
 
         try {
@@ -151,7 +150,7 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
             val newCtx = ctx.copy(values = mapOf(fetch.key to jsonContext.json()))
 
             // execute child concurrently with new context
-            return statements(fetch.statements, newCtx)
+            return execute(fetch.script, newCtx)
         } catch (e: Exception) {
             // println(e)
             Result.Failure(ValueFetchError(fetch.key, fetch.source))
@@ -201,7 +200,7 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
 }
 
 /**
- * Executes [foreach] command: for each value at [Foreach.source] executes [Foreach.statements] using new
+ * Executes [foreach] command: for each value at [Foreach.source] executes [Foreach.script] using new
  *  [RuntimeContext] by adding value to [Foreach.key]
  */
 private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit, RuntimeError> {
@@ -214,16 +213,16 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
                 // execute tasks
                 .fold(emptyList<Deferred<Result<Unit, RuntimeError>>>(), { acc, newCtx ->
                     if (acc.size < newCtx.concurrency) {
-                        acc.plus(async { statements(foreach.statements, newCtx) })
+                        acc.plus(async { execute(foreach.script, newCtx) })
                     } else {
                         val job = acc.firstOrNull()
                         if (job != null) {
                             // await first task
                             // TODO: stop execution if job failed, cancel already running jobs
                             job.await()
-                            acc.drop(1).plus(async { statements(foreach.statements, newCtx) })
+                            acc.drop(1).plus(async { execute(foreach.script, newCtx) })
                         } else {
-                            acc.plus(async { statements(foreach.statements, newCtx) })
+                            acc.plus(async { execute(foreach.script, newCtx) })
                         }
                     }
                 })
@@ -239,14 +238,14 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
 }
 
 /**
- * Executes [Concurrently.statements] by limiting concurrency level to [Concurrently.level]
+ * Executes [Concurrently.script] by limiting concurrency level to [Concurrently.level]
  */
-private suspend fun concurrently(script: Concurrently, ctx: RuntimeContext) =
-    statements(script, ctx.copy(concurrency = script.level))
+private suspend fun concurrently(concurrently: Concurrently, ctx: RuntimeContext) =
+    execute(concurrently.script, ctx.copy(concurrency = concurrently.level))
 
 
 /**
- * Executes all [list] statements concurrently
+ * Executes all [list] script concurrently
  */
 private suspend fun statements(list: List<HitSyntax>, ctx: RuntimeContext): Result<Unit, RuntimeError> {
     // 1. execute all concurrently in parallel using current ctx

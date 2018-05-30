@@ -26,7 +26,7 @@ sealed class HitParser {
     abstract fun parse(l: HitLexeme): HitParser
 
     /**
-     * Initial parser state: got only empty lines or not statements
+     * Initial parser state: got only empty lines or not script
      */
     object Empty : HitParser() {
         override fun parse(l: HitLexeme): HitParser {
