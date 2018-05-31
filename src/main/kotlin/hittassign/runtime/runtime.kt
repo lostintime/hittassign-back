@@ -18,32 +18,34 @@ import java.io.File
 /**
  * Runtime errors ADT
  */
-sealed class RuntimeError : Exception()
+sealed class RuntimeError : Exception() {
 
-/**
- * Value for given ValName [name] not found withing [RuntimeContext.values]
- */
-data class ValueNotFound(val name: ValName) : RuntimeError()
+    /**
+     * Value for given ValName [name] not found withing [RuntimeContext.values]
+     */
+    data class ValueNotFound(val name: ValName) : RuntimeError()
 
-/**
- * Value with name=[name] found in [RuntimeContext.values] but was unable dest load required type at [path]
- */
-data class InvalidValueType(val name: ValName, val path: JsonPath) : RuntimeError()
+    /**
+     * Value with name=[name] found in [RuntimeContext.values] but was unable dest load required type at [path]
+     */
+    data class InvalidValueType(val name: ValName, val path: JsonPath) : RuntimeError()
 
-/**
- * Failed dest fetch value dest [key] from [source]
- */
-data class FetchFailed(val key: ValName, val source: Url) : RuntimeError()
+    /**
+     * Failed dest fetch value dest [key] from [source]
+     */
+    data class FetchFailed(val key: ValName, val source: Url) : RuntimeError()
 
-/**
- * Failed dest download file
- */
-data class FileDownloadFailed(val source: Url, val to: FilePath) : RuntimeError()
+    /**
+     * Failed dest download file
+     */
+    data class FileDownloadFailed(val source: Url, val to: FilePath) : RuntimeError()
 
-/**
- * Failed to mkdir at [path]
- */
-data class MkdirFailed(val path: String) : RuntimeError()
+    /**
+     * Failed to mkdir at [path]
+     */
+    data class MkdirFailed(val path: String) : RuntimeError()
+
+}
 
 /**
  * App execution context tree.
@@ -67,10 +69,10 @@ data class RuntimeContext(
                     spec.path.compiled.read<T>(obj)
                 }
                 .mapError {
-                    InvalidValueType(spec.name, spec.path)
+                    RuntimeError.InvalidValueType(spec.name, spec.path)
                 }
         } else {
-            parent?.getValue(spec) ?: Failure(ValueNotFound(spec.name))
+            parent?.getValue(spec) ?: Failure(RuntimeError.ValueNotFound(spec.name))
         }
     }
 
@@ -85,7 +87,7 @@ data class RuntimeContext(
                     is String -> s
                     is Int -> s.toString()
                     is Double -> s.toString()
-                    else -> throw InvalidValueType(spec.name, spec.path)
+                    else -> throw RuntimeError.InvalidValueType(spec.name, spec.path)
                 }
             }
     }
@@ -102,10 +104,10 @@ data class RuntimeContext(
                     spec.path.compiled.read<Iterable<T>>(obj)
                 }
                 .mapError {
-                    InvalidValueType(spec.name, spec.path)
+                    RuntimeError.InvalidValueType(spec.name, spec.path)
                 }
         } else {
-            return Failure(ValueNotFound(spec.name))
+            return Failure(RuntimeError.ValueNotFound(spec.name))
         }
     }
 
@@ -151,7 +153,7 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
             // execute child concurrently with new context
             return execute(fetch.script, newCtx)
         } catch (e: Exception) {
-            Failure(FetchFailed(fetch.name, fetch.source))
+            Failure(RuntimeError.FetchFailed(fetch.name, fetch.source))
         }
     }, {
         Failure(it)
@@ -188,15 +190,15 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
                         .destination { _, _ -> file }
                         .awaitResponse().third
                         .map { }
-                        .mapError { FileDownloadFailed(download.source, download.dest) }
+                        .mapError { RuntimeError.FileDownloadFailed(download.source, download.dest) }
                 } else {
-                    Failure(MkdirFailed(file.parent ?: ""))
+                    Failure(RuntimeError.MkdirFailed(file.parent ?: ""))
                 }
             }, {
                 Failure(it)
             })
     } catch (e: Exception) {
-        return Failure(FileDownloadFailed(download.source, download.dest))
+        return Failure(RuntimeError.FileDownloadFailed(download.source, download.dest))
     }
 }
 
