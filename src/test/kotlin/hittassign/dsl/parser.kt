@@ -1,6 +1,7 @@
 package hittassign.dsl
 
 import com.github.kittinunf.result.Result
+import com.github.kittinunf.result.flatMap
 import kotlin.test.assertEquals
 import org.junit.Test
 import kotlin.test.assertTrue
@@ -144,6 +145,20 @@ class TestDslParser {
             parse(listOf(HitLexeme.Symbol("aloha"))) is Result.Failure
         )
     }
+
+    @Test
+    fun `more complex example`() {
+        val source = """|
+            |fetch h https://api.hitta.se/search/v7/app/combined/within/57.840703831916%3A11.728156448084002%2C57.66073920808401%3A11.908121071915998/?range.to=101&range.from=1&geo.hint=57.75072152%3A11.81813876&sort.order=relevance&query=lunch
+            |  foreach c h.result.companies.company
+            |    fetch v https://api.foursquare.com/v2/venues/search?ll={c.address[0].coordinate.north,c.address[0].coordinate.east}&client_id=CLIENT_ID&client_secret=CLIENT_SECRET&intent=match&name={c.displayName}&v=20180401
+            |      fetch d https://api.foursquare.com/v2/venues/\$\{v.response.venues[0].id\}/photos?client_id=CLIENT_ID&client_secret=CLIENT_SECRET&v=20180401
+            |        foreach i d.response.photo.items
+            |          download {i.prefix}original{i.suffix} /some_local_path/photos/{c.id}_{i.suffix}
+            |""".trimMargin()
+
+        assertTrue(lex(source).flatMap { parse(it) } is Result.Success)
+    }
 }
 
 class TestStringTpl {
@@ -185,8 +200,4 @@ class TestStringTpl {
             stringTpl("ll={l.lat,l.lng}")
         )
     }
-}
-
-class TestJsonPath {
-    // TODO add JsonPath validation
 }
