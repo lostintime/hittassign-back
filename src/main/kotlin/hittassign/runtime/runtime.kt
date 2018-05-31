@@ -16,21 +16,21 @@ import java.io.File
 sealed class GetValError : Exception()
 
 /**
- * Value for given ValBind [key] not found withing [RuntimeContext.values]
+ * Value for given ValName [key] not found withing [RuntimeContext.values]
  */
-data class ValBindNotFound(val key: ValBind) : GetValError()
+data class ValBindNotFound(val key: ValName) : GetValError()
 
 /**
- * Value with name=[key] found in [RuntimeContext.values] but was unable to load required type at [path]
+ * Value with name=[key] found in [RuntimeContext.values] but was unable dest load required type at [path]
  */
-data class InvalidValBindType(val key: ValBind, val path: JsonPath) : GetValError()
+data class InvalidValBindType(val key: ValName, val path: JsonPath) : GetValError()
 
 /**
  * App execution context tree.
- * Contains bound values and exposes methods to retrieve them
+ * Contains bound values and exposes methods dest retrieve them
  */
 data class RuntimeContext(
-    private val values: Map<ValBind, Any> = mapOf(),
+    private val values: Map<ValName, Any> = mapOf(),
     private val parent: RuntimeContext? = null,
     val concurrency: Int = 32 // just a magic number
 ) {
@@ -39,7 +39,7 @@ data class RuntimeContext(
      * @returns Result.Failure if value not found in map or at given source
      */
     private fun <T : Any> getValue(spec: ValSpec): Result<T, GetValError> {
-        val obj = values[spec.key]
+        val obj = values[spec.name]
 
         return if (obj != null) {
             Result
@@ -47,10 +47,10 @@ data class RuntimeContext(
                     spec.path.compiled.read<T>(obj)
                 }
                 .mapError {
-                    InvalidValBindType(spec.key, spec.path)
+                    InvalidValBindType(spec.name, spec.path)
                 }
         } else {
-            parent?.getValue(spec) ?: Result.Failure(ValBindNotFound(spec.key))
+            parent?.getValue(spec) ?: Result.Failure(ValBindNotFound(spec.name))
         }
     }
 
@@ -65,7 +65,7 @@ data class RuntimeContext(
                     is String -> s
                     is Int -> s.toString()
                     is Double -> s.toString()
-                    else -> throw InvalidValBindType(spec.key, spec.path)
+                    else -> throw InvalidValBindType(spec.name, spec.path)
                 }
             }
     }
@@ -74,7 +74,7 @@ data class RuntimeContext(
      * Returns Iterable<T> value at given ValSpec
      */
     fun <T> getIterable(spec: ValSpec): Result<Iterable<T>, GetValError> {
-        val obj = values[spec.key]
+        val obj = values[spec.name]
 
         return if (obj != null) {
             Result
@@ -82,10 +82,10 @@ data class RuntimeContext(
                     spec.path.compiled.read<Iterable<T>>(obj)
                 }
                 .mapError {
-                    InvalidValBindType(spec.key, spec.path)
+                    InvalidValBindType(spec.name, spec.path)
                 }
         } else {
-            return Result.Failure(ValBindNotFound(spec.key))
+            return Result.Failure(ValBindNotFound(spec.name))
         }
     }
 
@@ -112,24 +112,24 @@ data class RuntimeContext(
 sealed class RuntimeError : Exception()
 
 /**
- * Filed to read value from [RuntimeContext] ([RuntimeError] type)
+ * Filed dest read value from [RuntimeContext] ([RuntimeError] type)
  */
 data class ValueReadError(val prev: GetValError) : RuntimeError()
 
 /**
- * Failed to fetch value to [key] from [source]
+ * Failed dest fetch value dest [key] from [source]
  */
-data class ValueFetchError(val key: ValBind, val source: Url) : RuntimeError()
+data class ValueFetchError(val key: ValName, val source: Url) : RuntimeError()
 
 /**
- * Failed to download file
+ * Failed dest download file
  */
 data class FileDownloadError(val source: Url, val to: FilePath) : RuntimeError()
 
 /**
  * Executes [fetch] command:
  *  - Loads Json from [Fetch.source]
- *  - Bind Json to [Fetch.key] within new [RuntimeContext]
+ *  - Bind Json dest [Fetch.name] within new [RuntimeContext]
  *  - Executes all [Fetch.script] using new [RuntimeContext]
  */
 private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, RuntimeError> {
@@ -146,12 +146,12 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
         try {
             // 3. build new context using fetched json
             val jsonContext = JsonPath.parse(jsonStr)
-            val newCtx = ctx.copy(values = mapOf(fetch.key to jsonContext.json()))
+            val newCtx = ctx.copy(values = mapOf(fetch.name to jsonContext.json()))
 
             // execute child concurrently with new context
             return execute(fetch.script, newCtx)
         } catch (e: Exception) {
-            Result.Failure(ValueFetchError(fetch.key, fetch.source))
+            Result.Failure(ValueFetchError(fetch.name, fetch.source))
         }
     }, {
         Result.Failure(ValueReadError(it))
@@ -159,7 +159,7 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
 }
 
 /**
- * Executes [download] command: downloads [Download.source] file to [Download.to].
+ * Executes [download] command: downloads [Download.source] file dest [Download.dest].
  */
 private suspend fun download(download: Download, ctx: RuntimeContext): Result<Unit, RuntimeError> {
     try {
@@ -169,9 +169,9 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
             is StringTpl -> ctx.renderStringTpl(download.source)
         }
 
-        val destination = when (download.to) {
-            is ValSpec -> ctx.getString(download.to)
-            is StringTpl -> ctx.renderStringTpl(download.to)
+        val destination = when (download.dest) {
+            is ValSpec -> ctx.getString(download.dest)
+            is StringTpl -> ctx.renderStringTpl(download.dest)
         }
 
         return source
@@ -188,18 +188,18 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
 
                 return result.third
                     .map { }
-                    .mapError { FileDownloadError(download.source, download.to) }
+                    .mapError { FileDownloadError(download.source, download.dest) }
             }, {
                 Result.Failure(ValueReadError(it))
             })
     } catch (e: Exception) {
-        return Result.Failure(FileDownloadError(download.source, download.to))
+        return Result.Failure(FileDownloadError(download.source, download.dest))
     }
 }
 
 /**
  * Executes [foreach] command: for each value at [Foreach.source] executes [Foreach.script] using new
- *  [RuntimeContext] by adding value to [Foreach.key]
+ *  [RuntimeContext] by adding value dest [Foreach.name]
  */
 private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit, RuntimeError> {
     // 1. resolve iterable from current context
@@ -207,7 +207,7 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
         .fold({ values ->
             val jobs = values
                 // 2. for each element - build new ctx and execute concurrently using it
-                .map { ctx.copy(values = mapOf(foreach.key to it)) }
+                .map { ctx.copy(values = mapOf(foreach.name to it)) }
                 // execute tasks
                 .fold(emptyList<Deferred<Result<Unit, RuntimeError>>>(), { acc, newCtx ->
                     if (acc.size < newCtx.concurrency) {
@@ -228,7 +228,7 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
                     it.await()
                 }
 
-            // 3. check for failed jobs to fail
+            // 3. check for failed jobs dest fail
             jobs.find { it is Result.Failure } ?: Result.Success(Unit)
         }, {
             Result.Failure(ValueReadError(it))
@@ -236,7 +236,7 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
 }
 
 /**
- * Executes [Concurrently.script] by limiting concurrency level to [Concurrently.level]
+ * Executes [Concurrently.script] by limiting concurrency level dest [Concurrently.level]
  */
 private suspend fun concurrently(concurrently: Concurrently, ctx: RuntimeContext) =
     execute(concurrently.script, ctx.copy(concurrency = concurrently.level))
@@ -265,7 +265,7 @@ private suspend fun statements(list: List<HitSyntax>, ctx: RuntimeContext): Resu
         .map {
             it.await()
         }
-        // 2. check for failed results to stop execution
+        // 2. check for failed results dest stop execution
         .find { it is Result.Failure } ?: Result.Success(Unit)
 }
 

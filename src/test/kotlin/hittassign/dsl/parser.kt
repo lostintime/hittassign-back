@@ -30,7 +30,7 @@ class TestDslParser {
             Result.Success(
                 Statements(
                     Fetch(
-                        ValBind("n"),
+                        ValName("n"),
                         StringTpl(ConstStrPart("http://test.com/api.json")),
                         Statements(Debug(StringTpl(ConstStrPart("hello"))))
                     )
@@ -57,8 +57,8 @@ class TestDslParser {
             Result.Success(
                 Statements(
                     Foreach(
-                        ValBind("n"),
-                        ValSpec(ValBind("u"), JsonPath.compile("$")),
+                        ValName("n"),
+                        ValSpec(ValName("u"), JsonPath.compile("$")),
                         Statements(Debug(StringTpl(ConstStrPart("hello"))))
                     )
                 )
@@ -149,7 +149,7 @@ class TestDslParser {
     @Test
     fun `more complex example`() {
         val source = """|
-            |fetch h https://api.hitta.se/search/v7/app/combined/within/57.840703831916%3A11.728156448084002%2C57.66073920808401%3A11.908121071915998/?range.to=101&range.from=1&geo.hint=57.75072152%3A11.81813876&sort.order=relevance&query=lunch
+            |fetch h https://api.hitta.se/search/v7/app/combined/within/57.840703831916%3A11.728156448084002%2C57.66073920808401%3A11.908121071915998/?range.dest=101&range.from=1&geo.hint=57.75072152%3A11.81813876&sort.order=relevance&query=lunch
             |  foreach c h.result.companies.company
             |    fetch v https://api.foursquare.com/v2/venues/search?ll={c.address[0].coordinate.north,c.address[0].coordinate.east}&client_id=CLIENT_ID&client_secret=CLIENT_SECRET&intent=match&name={c.displayName}&v=20180401
             |      fetch d https://api.foursquare.com/v2/venues/\$\{v.response.venues[0].id\}/photos?client_id=CLIENT_ID&client_secret=CLIENT_SECRET&v=20180401
@@ -181,7 +181,7 @@ class TestStringTpl {
     @Test
     fun `parse StringTpl from value reference`() {
         assertEquals(
-            Result.Success(StringTpl(ValSpecPart(ValSpec(ValBind("user"), JsonPath.compile("$.name"))))),
+            Result.Success(StringTpl(ValSpecPart(ValSpec(ValName("user"), JsonPath.compile("$.name"))))),
             stringTpl("{user.name}")
         )
     }
@@ -192,9 +192,9 @@ class TestStringTpl {
             Result.Success(
                 StringTpl(
                     ConstStrPart("ll="),
-                    ValSpecPart(ValSpec(ValBind("l"), JsonPath.compile("$.lat"))),
+                    ValSpecPart(ValSpec(ValName("l"), JsonPath.compile("$.lat"))),
                     ConstStrPart(","),
-                    ValSpecPart(ValSpec(ValBind("l"), JsonPath.compile("$.lng")))
+                    ValSpecPart(ValSpec(ValName("l"), JsonPath.compile("$.lng")))
                 )
             ),
             stringTpl("ll={l.lat,l.lng}")

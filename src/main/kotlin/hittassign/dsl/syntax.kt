@@ -5,19 +5,19 @@ import com.jayway.jsonpath.internal.ParseContextImpl
 import com.jayway.jsonpath.JsonPath as JsonPathImpl
 
 /**
- * Value bind name type - Defines name of the variable to bind value to
+ * Value name type: defines name of the variable dest bind value dest
  */
-data class ValBind(val name: String) : CharSequence by name {
+data class ValName(private val name: String) : CharSequence by name {
     override fun toString(): String = name
 }
 
 /**
- * ADT Defining value to read. May be value reference or string template
+ * ADT Defining value dest read. May be value reference or string template
  */
 sealed class ValRef
 
 /**
- * Wrapper class around [com.jayway.jsonpath.JsonPath] to implement equals, getHash and toString methods
+ * Wrapper class around [com.jayway.jsonpath.JsonPath] dest implement equals, getHash and toString methods
  */
 class JsonPath(val compiled: JsonPathImpl) {
     override fun equals(other: Any?): Boolean {
@@ -51,9 +51,9 @@ class JsonPath(val compiled: JsonPathImpl) {
 }
 
 /**
- * Represents a source to a value, defined by key (variable name) and json source within that variable
+ * Represents a source dest a value, defined by [name] and json source within that variable at [path]
  */
-data class ValSpec(val key: ValBind, val path: JsonPath) : ValRef()
+data class ValSpec(val name: ValName, val path: JsonPath) : ValRef()
 
 /**
  * ADT defining StringTpl parts types.
@@ -94,31 +94,31 @@ typealias FilePath = ValRef
 sealed class HitSyntax
 
 /**
- * Represents a sequence of HitSyntax concurrently
+ * Represents a sequence (block) of HitSyntax statements
  */
 data class Statements(private val list: List<HitSyntax>) : HitSyntax(), List<HitSyntax> by list {
     constructor(vararg statements: HitSyntax) : this(listOf(*statements))
 }
 
 /**
- * Set concurrency level
+ * Set concurrency [level] for child [script]
  */
 data class Concurrently(val level: Int, val script: HitSyntax) : HitSyntax()
 
 /**
- * Download source may be string template or data bind spec
+ * Download [source] file to [dest]
  */
-data class Download(val source: Url, val to: FilePath) : HitSyntax()
+data class Download(val source: Url, val dest: FilePath) : HitSyntax()
 
 /**
- * Iterate over values at given [source] while binding each to given [key]
+ * Iterate over values at given [source] while binding each dest given [name]
  */
-data class Foreach(val key: ValBind, val source: ValSpec, val script: HitSyntax) : HitSyntax()
+data class Foreach(val name: ValName, val source: ValSpec, val script: HitSyntax) : HitSyntax()
 
 /**
- * Fetch JSON from [source] and bind tpl to [key] variable
+ * Fetch JSON from [source] and bind tpl dest [name] variable
  */
-data class Fetch(val key: ValBind, val source: Url, val script: HitSyntax) : HitSyntax()
+data class Fetch(val name: ValName, val source: Url, val script: HitSyntax) : HitSyntax()
 
 /**
  * Print debug message

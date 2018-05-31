@@ -11,13 +11,13 @@ class TestRuntimeContext {
     fun `get String from root`() {
         val ctx = RuntimeContext(
             mapOf(
-                ValBind("k") to JsonPath.parse("\"hello\"").json()
+                ValName("k") to JsonPath.parse("\"hello\"").json()
             )
         )
 
         assertEquals(
             Result.Success("hello"),
-            ctx.getString(ValSpec(ValBind("k"), JsonPath.compile("$"))),
+            ctx.getString(ValSpec(ValName("k"), JsonPath.compile("$"))),
             "json value extracted"
         )
     }
@@ -26,7 +26,7 @@ class TestRuntimeContext {
     fun `get String from sub-path`() {
         val ctx = RuntimeContext(
             mapOf(
-                ValBind("z") to JsonPath.parse(
+                ValName("z") to JsonPath.parse(
                     """{
                        "name": "John",
                        "city": {
@@ -43,49 +43,49 @@ class TestRuntimeContext {
 
         assertEquals(
             Result.Success("John"),
-            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.name"))),
+            ctx.getString(ValSpec(ValName("z"), JsonPath.compile("$.name"))),
             "got name from $.name"
         )
 
         assertEquals(
             Result.Success("London"),
-            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.name"))),
+            ctx.getString(ValSpec(ValName("z"), JsonPath.compile("$.city.name"))),
             "got name from $.city.name"
         )
 
         assertEquals(
             Result.Success("123"),
-            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.id"))),
+            ctx.getString(ValSpec(ValName("z"), JsonPath.compile("$.city.id"))),
             "got id from $.city.id"
         )
 
         assertEquals(
             Result.Success("45.6"),
-            ctx.getString(ValSpec(ValBind("z"), JsonPath.compile("$.city.size"))),
+            ctx.getString(ValSpec(ValName("z"), JsonPath.compile("$.city.size"))),
             "got size from $.city.size"
         )
 
         // JsonPath doesn't implement equals, using same instance
         val p1 = JsonPath.compile("$.city")
         assertEquals(
-            Result.Failure(InvalidValBindType(ValBind("z"), p1)),
-            ctx.getString(ValSpec(ValBind("z"), p1)),
+            Result.Failure(InvalidValBindType(ValName("z"), p1)),
+            ctx.getString(ValSpec(ValName("z"), p1)),
             "unable get String at object source"
         )
 
         // JsonPath doesn't implement equals, using same instance
         val p2 = JsonPath.compile("$.items")
         assertEquals(
-            Result.Failure(InvalidValBindType(ValBind("z"), p2)),
-            ctx.getString(ValSpec(ValBind("z"), p2)),
+            Result.Failure(InvalidValBindType(ValName("z"), p2)),
+            ctx.getString(ValSpec(ValName("z"), p2)),
             "unable get String at array source"
         )
 
         // JsonPath doesn't implement equals, using same instance
         val p3 = JsonPath.compile("$.enabled")
         assertEquals(
-            Result.Failure(InvalidValBindType(ValBind("z"), p3)),
-            ctx.getString(ValSpec(ValBind("z"), p3)),
+            Result.Failure(InvalidValBindType(ValName("z"), p3)),
+            ctx.getString(ValSpec(ValName("z"), p3)),
             "unable get String at boolean source"
         )
     }
@@ -93,15 +93,15 @@ class TestRuntimeContext {
     @Test
     fun `get string from previous context`() {
         val ctx = RuntimeContext(
-            mapOf(ValBind("z") to JsonPath.parse("\"z-value\"").json()),
+            mapOf(ValName("z") to JsonPath.parse("\"z-value\"").json()),
             RuntimeContext(
-                mapOf(ValBind("h") to JsonPath.parse("\"h-value\"").json())
+                mapOf(ValName("h") to JsonPath.parse("\"h-value\"").json())
             )
         )
 
         assertEquals(
             Result.Success("h-value"),
-            ctx.getString(ValSpec(ValBind("h"), JsonPath.compile("$"))),
+            ctx.getString(ValSpec(ValName("h"), JsonPath.compile("$"))),
             "json value extracted from parent context"
         )
     }
@@ -110,11 +110,11 @@ class TestRuntimeContext {
     fun `get Iterable from root`() {
         val ctx = RuntimeContext(
             mapOf(
-                ValBind("k") to JsonPath.parse("[\"hello\", \"there\"]").json()
+                ValName("k") to JsonPath.parse("[\"hello\", \"there\"]").json()
             )
         )
 
-        val items = ctx.getIterable<String>(ValSpec(ValBind("k"), JsonPath.compile("$")))
+        val items = ctx.getIterable<String>(ValSpec(ValName("k"), JsonPath.compile("$")))
         assertTrue(items is Result.Success, "successfully loaded iterable for json array")
         val l = items.get().toList()
         assertTrue(l.size == 2)
@@ -126,7 +126,7 @@ class TestRuntimeContext {
     fun `rendering string template`() {
         val ctx = RuntimeContext(
             mapOf(
-                ValBind("a") to JsonPath.parse("""{"name": "John"}""").json()
+                ValName("a") to JsonPath.parse("""{"name": "John"}""").json()
             )
         )
 
@@ -135,7 +135,7 @@ class TestRuntimeContext {
             ctx.renderStringTpl(
                 StringTpl(
                     ConstStrPart("Hello "),
-                    ValSpecPart(ValSpec(ValBind("a"), JsonPath.compile("$.name")))
+                    ValSpecPart(ValSpec(ValName("a"), JsonPath.compile("$.name")))
                 )
             ),
             "StringTpl  rendered successfully"
@@ -145,21 +145,21 @@ class TestRuntimeContext {
         val p1 = JsonPath.compile("$.surname")
 
         assertEquals(
-            Result.Failure<String, GetValError>(InvalidValBindType(ValBind("a"), p1)),
+            Result.Failure<String, GetValError>(InvalidValBindType(ValName("a"), p1)),
             ctx.renderStringTpl(
                 StringTpl(
                     ConstStrPart("Hola "),
-                    ValSpecPart(ValSpec(ValBind("a"), p1))
+                    ValSpecPart(ValSpec(ValName("a"), p1))
                 )
             )
         )
 
         assertEquals(
-            Result.Failure<String, GetValError>(ValBindNotFound(ValBind("b"))),
+            Result.Failure<String, GetValError>(ValBindNotFound(ValName("b"))),
             ctx.renderStringTpl(
                 StringTpl(
                     ConstStrPart("Hola "),
-                    ValSpecPart(ValSpec(ValBind("b"), JsonPath.compile("$.name")))
+                    ValSpecPart(ValSpec(ValName("b"), JsonPath.compile("$.name")))
                 )
             )
         )

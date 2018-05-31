@@ -17,16 +17,16 @@ data class ParseError(val msg: String) : Exception()
 typealias ParseResult = Result<Parsed, ParseError>
 
 /**
- * Returns true if key is a valid value name
+ * Returns true if name is a valid value name
  */
 fun isValidValName(key: String): Boolean = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${'$'}]*$""").matches(key)
 
-internal fun valBind(s: String): Result<ValBind, ParseError> {
-    return Success(ValBind(s))
+internal fun valBind(s: String): Result<ValName, ParseError> {
+    return Success(ValName(s))
 }
 
 /**
- * Parse string [s] to [ValRef]: first check for a valid [ValRef] then [StringTpl]
+ * Parse string [s] dest [ValRef]: first check for a valid [ValRef] then [StringTpl]
  */
 internal fun valRef(s: String): Result<ValRef, ParseError> {
     return valSpec(s)
@@ -35,7 +35,7 @@ internal fun valRef(s: String): Result<ValRef, ParseError> {
 }
 
 /**
- * Parses [spec] string to [ValSpec]
+ * Parses [spec] string dest [ValSpec]
  */
 internal fun valSpec(spec: String): Result<ValSpec, ParseError> {
     val firstDot = spec.indexOf('.')
@@ -46,7 +46,7 @@ internal fun valSpec(spec: String): Result<ValSpec, ParseError> {
         Result
             .of { JsonPath.compile(jsonPath) }
             .mapError { ParseError("Invalid Json Path at ..") }
-            .map { ValSpec(ValBind(name), it) }
+            .map { ValSpec(ValName(name), it) }
     } else {
         Failure(ParseError("Invalid val spec \"$spec\" at .."))
     }

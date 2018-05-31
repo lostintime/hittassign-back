@@ -25,7 +25,7 @@ sealed class HitLexeme {
 object LexError : Exception()
 
 /**
- * State machine to read string into [HitLexeme] list, char by char
+ * State machine dest read string into [HitLexeme] list, char by char
  */
 sealed class LexReader {
     /**

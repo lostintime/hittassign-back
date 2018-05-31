@@ -8,26 +8,26 @@ import org.junit.Test
 class TestValBind {
     @Test
     fun `can be compared`() {
-        assertEquals(ValBind("one"), ValBind("one"), "equals method implemented")
+        assertEquals(ValName("one"), ValName("one"), "equals method implemented")
 
-        assertNotEquals(ValBind("one"), ValBind("two"), "equals method implemented")
+        assertNotEquals(ValName("one"), ValName("two"), "equals method implemented")
 
         assertEquals(
-            mapOf(ValBind("one") to "one"),
-            mapOf(ValBind("one") to "one"),
+            mapOf(ValName("one") to "one"),
+            mapOf(ValName("one") to "one"),
             "hashCode method implemented"
         )
 
         assertNotEquals(
-            mapOf(ValBind("one") to "one"),
-            mapOf(ValBind("one") to "two"),
+            mapOf(ValName("one") to "one"),
+            mapOf(ValName("one") to "two"),
             "hashCode method implemented"
         )
     }
 
     @Test
     fun `toString implemented`() {
-        assertEquals(ValBind("a").toString(), "a")
-        assertNotEquals(ValBind("a").toString(), "b")
+        assertEquals(ValName("a").toString(), "a")
+        assertNotEquals(ValName("a").toString(), "b")
     }
 }
