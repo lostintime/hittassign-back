@@ -62,7 +62,7 @@ Where:
 Set concurrency level for child block statements.
 
 ```
-concurrency 8
+concurrently 8
   debug Concurrency\ level\ is\ 8\ here
 ```
 
