@@ -16,19 +16,34 @@ import kotlinx.coroutines.experimental.async
 import java.io.File
 
 /**
- * ADT defining errors happening on reading values from RuntimeContext
+ * Runtime errors ADT
  */
-sealed class GetValError : Exception()
+sealed class RuntimeError : Exception()
 
 /**
  * Value for given ValName [name] not found withing [RuntimeContext.values]
  */
-data class ValBindNotFound(val name: ValName) : GetValError()
+data class ValueNotFound(val name: ValName) : RuntimeError()
 
 /**
  * Value with name=[name] found in [RuntimeContext.values] but was unable dest load required type at [path]
  */
-data class InvalidValBindType(val name: ValName, val path: JsonPath) : GetValError()
+data class InvalidValueType(val name: ValName, val path: JsonPath) : RuntimeError()
+
+/**
+ * Failed dest fetch value dest [key] from [source]
+ */
+data class FetchFailed(val key: ValName, val source: Url) : RuntimeError()
+
+/**
+ * Failed dest download file
+ */
+data class FileDownloadFailed(val source: Url, val to: FilePath) : RuntimeError()
+
+/**
+ * Failed to mkdir at [path]
+ */
+data class MkdirFailed(val path: String) : RuntimeError()
 
 /**
  * App execution context tree.
@@ -43,7 +58,7 @@ data class RuntimeContext(
      * Get value from values map
      * @returns Result.Failure if value not found in map or at given source
      */
-    private fun <T : Any> getValue(spec: ValSpec): Result<T, GetValError> {
+    private fun <T : Any> getValue(spec: ValSpec): Result<T, RuntimeError> {
         val obj = values[spec.name]
 
         return if (obj != null) {
@@ -52,10 +67,10 @@ data class RuntimeContext(
                     spec.path.compiled.read<T>(obj)
                 }
                 .mapError {
-                    InvalidValBindType(spec.name, spec.path)
+                    InvalidValueType(spec.name, spec.path)
                 }
         } else {
-            parent?.getValue(spec) ?: Failure(ValBindNotFound(spec.name))
+            parent?.getValue(spec) ?: Failure(ValueNotFound(spec.name))
         }
     }
 
@@ -63,14 +78,14 @@ data class RuntimeContext(
      * Returns String value for given ValSpec
      * Succeeds for String, Int and Double values, fails for other types
      */
-    fun getString(spec: ValSpec): Result<String, GetValError> {
+    fun getString(spec: ValSpec): Result<String, RuntimeError> {
         return this.getValue<Any>(spec)
             .map { s ->
                 when (s) {
                     is String -> s
                     is Int -> s.toString()
                     is Double -> s.toString()
-                    else -> throw InvalidValBindType(spec.name, spec.path)
+                    else -> throw InvalidValueType(spec.name, spec.path)
                 }
             }
     }
@@ -78,7 +93,7 @@ data class RuntimeContext(
     /**
      * Returns Iterable<T> value at given ValSpec
      */
-    fun <T> getIterable(spec: ValSpec): Result<Iterable<T>, GetValError> {
+    fun <T> getIterable(spec: ValSpec): Result<Iterable<T>, RuntimeError> {
         val obj = values[spec.name]
 
         return if (obj != null) {
@@ -87,18 +102,18 @@ data class RuntimeContext(
                     spec.path.compiled.read<Iterable<T>>(obj)
                 }
                 .mapError {
-                    InvalidValBindType(spec.name, spec.path)
+                    InvalidValueType(spec.name, spec.path)
                 }
         } else {
-            return Failure(ValBindNotFound(spec.name))
+            return Failure(ValueNotFound(spec.name))
         }
     }
 
-    fun renderStringTpl(tpl: StringTpl): Result<String, GetValError> {
+    fun renderStringTpl(tpl: StringTpl): Result<String, RuntimeError> {
         return tpl.parts
             .fold(
                 Success(StringBuilder()),
-                fun(acc, part): Result<StringBuilder, GetValError> {
+                fun(acc, part): Result<StringBuilder, RuntimeError> {
                     return when (part) {
                         is ConstStrPart -> acc.map { it.append(part.str) }
                         is ValSpecPart -> acc.flatMap { builder -> getString(part.ref).map { v -> builder.append(v) } }
@@ -110,31 +125,6 @@ data class RuntimeContext(
             }
     }
 }
-
-/**
- * ADT defining runtime errors
- */
-sealed class RuntimeError : Exception()
-
-/**
- * Filed dest read value from [RuntimeContext] ([RuntimeError] type)
- */
-data class ValueReadError(val prev: GetValError) : RuntimeError()
-
-/**
- * Failed dest fetch value dest [key] from [source]
- */
-data class ValueFetchError(val key: ValName, val source: Url) : RuntimeError()
-
-/**
- * Failed dest download file
- */
-data class FileDownloadError(val source: Url, val to: FilePath) : RuntimeError()
-
-/**
- * Failed to mkdir at [path]
- */
-data class MkdirError(val path: String) : RuntimeError()
 
 /**
  * Executes [fetch] command:
@@ -161,10 +151,10 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
             // execute child concurrently with new context
             return execute(fetch.script, newCtx)
         } catch (e: Exception) {
-            Failure(ValueFetchError(fetch.name, fetch.source))
+            Failure(FetchFailed(fetch.name, fetch.source))
         }
     }, {
-        Failure(ValueReadError(it))
+        Failure(it)
     })
 }
 
@@ -198,15 +188,15 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
                         .destination { _, _ -> file }
                         .awaitResponse().third
                         .map { }
-                        .mapError { FileDownloadError(download.source, download.dest) }
+                        .mapError { FileDownloadFailed(download.source, download.dest) }
                 } else {
-                    Failure(MkdirError(file.parent ?: ""))
+                    Failure(MkdirFailed(file.parent ?: ""))
                 }
             }, {
-                Failure(ValueReadError(it))
+                Failure(it)
             })
     } catch (e: Exception) {
-        return Failure(FileDownloadError(download.source, download.dest))
+        return Failure(FileDownloadFailed(download.source, download.dest))
     }
 }
 
@@ -243,7 +233,7 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
             // 3. check for failed jobs dest fail
             jobs.find { it is Failure } ?: Success(Unit)
         }, {
-            Failure(ValueReadError(it))
+            Failure(it)
         })
 }
 
@@ -285,9 +275,10 @@ private suspend fun statements(list: List<HitSyntax>, ctx: RuntimeContext): Resu
  * Prints debug message
  */
 private fun debug(script: Debug, ctx: RuntimeContext): Result<Unit, RuntimeError> {
-    return ctx.renderStringTpl(script.message)
-        .map { println(it) }
-        .mapError { ValueReadError(it) }
+    return when (script.message) {
+        is ValSpec -> ctx.getString(script.message)
+        is StringTpl -> ctx.renderStringTpl(script.message)
+    }.map { println(it) }
 }
 
 /**

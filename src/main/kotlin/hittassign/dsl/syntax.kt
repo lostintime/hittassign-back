@@ -123,4 +123,4 @@ data class Fetch(val name: ValName, val source: Url, val script: HitSyntax) : Hi
 /**
  * Print debug message
  */
-data class Debug(val message: StringTpl) : HitSyntax()
+data class Debug(val message: ValRef) : HitSyntax()

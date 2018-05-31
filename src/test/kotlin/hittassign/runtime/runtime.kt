@@ -68,7 +68,7 @@ class TestRuntimeContext {
         // JsonPath doesn't implement equals, using same instance
         val p1 = JsonPath.compile("$.city")
         assertEquals(
-            Result.Failure(InvalidValBindType(ValName("z"), p1)),
+            Result.Failure(InvalidValueType(ValName("z"), p1)),
             ctx.getString(ValSpec(ValName("z"), p1)),
             "unable get String at object source"
         )
@@ -76,7 +76,7 @@ class TestRuntimeContext {
         // JsonPath doesn't implement equals, using same instance
         val p2 = JsonPath.compile("$.items")
         assertEquals(
-            Result.Failure(InvalidValBindType(ValName("z"), p2)),
+            Result.Failure(InvalidValueType(ValName("z"), p2)),
             ctx.getString(ValSpec(ValName("z"), p2)),
             "unable get String at array source"
         )
@@ -84,7 +84,7 @@ class TestRuntimeContext {
         // JsonPath doesn't implement equals, using same instance
         val p3 = JsonPath.compile("$.enabled")
         assertEquals(
-            Result.Failure(InvalidValBindType(ValName("z"), p3)),
+            Result.Failure(InvalidValueType(ValName("z"), p3)),
             ctx.getString(ValSpec(ValName("z"), p3)),
             "unable get String at boolean source"
         )
@@ -145,7 +145,7 @@ class TestRuntimeContext {
         val p1 = JsonPath.compile("$.surname")
 
         assertEquals(
-            Result.Failure<String, GetValError>(InvalidValBindType(ValName("a"), p1)),
+            Result.Failure<String, RuntimeError>(InvalidValueType(ValName("a"), p1)),
             ctx.renderStringTpl(
                 StringTpl(
                     ConstStrPart("Hola "),
@@ -155,7 +155,7 @@ class TestRuntimeContext {
         )
 
         assertEquals(
-            Result.Failure<String, GetValError>(ValBindNotFound(ValName("b"))),
+            Result.Failure<String, RuntimeError>(ValueNotFound(ValName("b"))),
             ctx.renderStringTpl(
                 StringTpl(
                     ConstStrPart("Hola "),
