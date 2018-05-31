@@ -20,3 +20,7 @@ gradle-app.setting
 out/
 tmp/
 *.hit
+.classpath
+.project
+.settings/
+bin/

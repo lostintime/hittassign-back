@@ -23,7 +23,7 @@ apply plugin: 'docker'
 version '1.0'
 
 group "lostintime"
-applicationName = "hittasign-back"
+applicationName = "hittassign-back"
 sourceCompatibility = '1.8'
 
 mainClassName = 'hittassign.AppKt'
