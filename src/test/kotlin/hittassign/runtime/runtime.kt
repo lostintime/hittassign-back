@@ -1,7 +1,6 @@
 package hittassign.runtime
 
 import com.github.kittinunf.result.Result
-import com.jayway.jsonpath.JsonPath
 import hittassign.dsl.*
 import kotlin.test.assertEquals
 import org.junit.Test
