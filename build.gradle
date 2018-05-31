@@ -7,17 +7,24 @@
 buildscript {
     ext.kotlin_version = '1.2.41'
     repositories {
+        jcenter()
         mavenCentral()
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'se.transmode.gradle:gradle-docker:1.2'
     }
 }
 
 apply plugin: 'kotlin'
 apply plugin: 'application'
+apply plugin: 'docker'
 
 version '1.0-SNAPSHOT'
+
+group "lostintime"
+applicationName = "hittasign-back"
+sourceCompatibility = '1.8'
 
 mainClassName = 'hittassign.AppKt'
 
@@ -52,6 +59,10 @@ kotlin {
     experimental {
         coroutines 'enable'
     }
+}
+
+docker {
+    baseImage "openjdk:8-jre-slim"
 }
 
 task wrapper(type: Wrapper) {
