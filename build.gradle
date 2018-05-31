@@ -20,7 +20,7 @@ apply plugin: 'kotlin'
 apply plugin: 'application'
 apply plugin: 'docker'
 
-version '1.0-SNAPSHOT'
+version '1.0'
 
 group "lostintime"
 applicationName = "hittasign-back"
