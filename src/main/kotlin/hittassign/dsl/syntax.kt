@@ -1,6 +1,8 @@
 package hittassign.dsl
 
-import com.jayway.jsonpath.JsonPath
+import com.jayway.jsonpath.DocumentContext
+import com.jayway.jsonpath.internal.ParseContextImpl
+import com.jayway.jsonpath.JsonPath as JsonPathImpl
 
 /**
  * Value bind name type - Defines name of the variable to bind value to
@@ -13,6 +15,40 @@ data class ValBind(val name: String) : CharSequence by name {
  * ADT Defining value to read. May be value reference or string template
  */
 sealed class ValRef
+
+/**
+ * Wrapper class around [com.jayway.jsonpath.JsonPath] to implement equals, getHash and toString methods
+ */
+class JsonPath(val compiled: JsonPathImpl) {
+    override fun equals(other: Any?): Boolean {
+        return when {
+            other === this -> true
+            other is String -> other == compiled.path
+            other is JsonPath -> other.compiled.path == compiled.path
+            else -> false
+        }
+    }
+
+    override fun hashCode(): Int {
+        return compiled.hashCode()
+    }
+
+    override fun toString(): String {
+        return compiled.path
+    }
+
+    companion object {
+        fun compile(jsonPath: String): JsonPath = JsonPath(JsonPathImpl.compile(jsonPath))
+
+        fun parse(json: Any): DocumentContext {
+            return ParseContextImpl().parse(json)
+        }
+
+        fun parse(json: String): DocumentContext {
+            return ParseContextImpl().parse(json)
+        }
+    }
+}
 
 /**
  * Represents a source to a value, defined by key (variable name) and json source within that variable

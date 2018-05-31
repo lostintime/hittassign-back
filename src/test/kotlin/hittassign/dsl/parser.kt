@@ -1,7 +1,6 @@
 package hittassign.dsl
 
 import com.github.kittinunf.result.Result
-import com.jayway.jsonpath.JsonPath
 import kotlin.test.assertEquals
 import org.junit.Test
 import kotlin.test.assertTrue

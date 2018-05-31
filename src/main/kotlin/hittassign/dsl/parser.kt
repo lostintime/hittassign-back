@@ -3,7 +3,6 @@ package hittassign.dsl
 import com.github.kittinunf.result.*
 import com.github.kittinunf.result.Result.Failure
 import com.github.kittinunf.result.Result.Success
-import com.jayway.jsonpath.JsonPath
 
 /**
  * Partial parse result

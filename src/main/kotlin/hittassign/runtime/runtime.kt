@@ -5,7 +5,6 @@ import awaitStringResult
 import com.github.kittinunf.fuel.httpDownload
 import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.result.*
-import com.jayway.jsonpath.JsonPath
 import hittassign.dsl.*
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
@@ -45,7 +44,7 @@ data class RuntimeContext(
         return if (obj != null) {
             Result
                 .of {
-                    spec.path.read<T>(obj)
+                    spec.path.compiled.read<T>(obj)
                 }
                 .mapError {
                     InvalidValBindType(spec.key, spec.path)
@@ -80,7 +79,7 @@ data class RuntimeContext(
         return if (obj != null) {
             Result
                 .of {
-                    spec.path.read<Iterable<T>>(obj)
+                    spec.path.compiled.read<Iterable<T>>(obj)
                 }
                 .mapError {
                     InvalidValBindType(spec.key, spec.path)
