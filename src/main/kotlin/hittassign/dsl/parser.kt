@@ -1,48 +1,146 @@
 package hittassign.dsl
 
-import com.github.kittinunf.result.Result
+import com.github.kittinunf.result.*
 import com.github.kittinunf.result.Result.Failure
 import com.github.kittinunf.result.Result.Success
-import com.github.kittinunf.result.flatMap
-import com.github.kittinunf.result.map
-import com.github.kittinunf.result.mapError
 import com.jayway.jsonpath.JsonPath
-
-data class ParseError(val msg: String) : Exception()
-
-fun isValidValKey(key: String): Boolean = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${'$'}]*$""").matches(key)
-
-/**
- * Invalid ValSpec value error
- */
-object InvalidValPath : Exception()
 
 /**
  * Partial parse result
  */
 data class Parsed(val script: HitSyntax, val tail: List<HitLexeme>)
 
+/**
+ * Parse error type
+ */
+data class ParseError(val msg: String) : Exception()
+
 typealias ParseResult = Result<Parsed, ParseError>
 
-private fun valBind(s: String): Result<ValBind, ParseError> {
+/**
+ * Returns true if key is a valid value name
+ */
+fun isValidValName(key: String): Boolean = Regex("""^[a-zA-Z_${'$'}][a-zA-Z0-9_${'$'}]*$""").matches(key)
+
+internal fun valBind(s: String): Result<ValBind, ParseError> {
     return Success(ValBind(s))
 }
 
 /**
- * Parse ValRef from string
+ * Parse string [s] to [ValRef]: first check for a valid [ValRef] then [StringTpl]
  */
-private fun valRef(s: String): Result<ValRef, ParseError> {
-    return stringTpl(s)
+internal fun valRef(s: String): Result<ValRef, ParseError> {
+    return valSpec(s)
+        .flatMapError { stringTpl(s) }
+        .mapError { ParseError("Invalid ValRef at ..") }
 }
 
-private fun valSpec(s: String): Result<ValSpec, ParseError> {
-    return Result.Success(ValSpec(ValBind(s), JsonPath.compile("$")))
+/**
+ * Parses [spec] string to [ValSpec]
+ */
+internal fun valSpec(spec: String): Result<ValSpec, ParseError> {
+    val firstDot = spec.indexOf('.')
+    val name = if (firstDot >= 0) spec.substring(0, firstDot) else spec
+    val jsonPath = if (firstDot >= 0) "\$${spec.substring(firstDot)}" else "$"
+
+    return if (isValidValName(name)) {
+        Result
+            .of { JsonPath.compile(jsonPath) }
+            .mapError { ParseError("Invalid Json Path at ..") }
+            .map { ValSpec(ValBind(name), it) }
+    } else {
+        Failure(ParseError("Invalid val spec \"$spec\" at .."))
+    }
 }
 
-private fun stringTpl(s: String): Result<StringTpl, ParseError> {
-    return Success(StringTpl(ConstStrPart(s)))
+private sealed class StringTplParser {
+
+    abstract fun parse(c: Char): StringTplParser
+
+    abstract fun finish(): StringTplParser
+
+    data class Success(val tpl: StringTpl) : StringTplParser() {
+        override fun parse(c: Char): StringTplParser {
+            return when (c) {
+                '{' -> OnValRef("", tpl)
+                '}' -> Invalid // Unexpected '}' at ..
+                else -> OnConstStr(Character.toString(c), tpl)
+            }
+        }
+
+        override fun finish(): StringTplParser = this
+    }
+
+    data class OnConstStr(val str: String, val tpl: StringTpl) : StringTplParser() {
+        override fun parse(c: Char): StringTplParser {
+            return when (c) {
+                '{' -> if (str.lastOrNull() == '\\') {
+                    OnConstStr(str.dropLast(1) + c, tpl)
+                } else {
+                    OnValRef("", tpl.copy(parts = tpl.parts + ConstStrPart(str)))
+                }
+                '}' -> if (str.lastOrNull() == '\\') {
+                    OnConstStr(str.dropLast(1) + c, tpl)
+                } else {
+                    Invalid // Unexpected '}' at ..
+                }
+                else -> OnConstStr(str + c, tpl)
+            }
+        }
+
+        override fun finish(): StringTplParser = Success(tpl.copy(parts = tpl.parts + ConstStrPart(str)))
+    }
+
+    data class OnValRef(val spec: String, val tpl: StringTpl) : StringTplParser() {
+        override fun parse(c: Char): StringTplParser {
+            return when (c) {
+                '}' -> {
+                    if (spec.lastOrNull() == '\\') {
+                        OnValRef(spec.dropLast(1) + c, tpl)
+                    } else {
+                        val v = valSpec(spec)
+
+                        if (v is Result.Success) {
+                            Success(tpl.copy(parts = tpl.parts + ValSpecPart(v.value)))
+                        } else {
+                            Invalid // Invalid ValSpec at ..
+                        }
+                    }
+                }
+                else -> OnValRef(spec + c, tpl)
+            }
+        }
+
+        override fun finish(): StringTplParser = Invalid // referenced values must be enclosed with '{', '}'
+    }
+
+    object Invalid : StringTplParser() {
+        override fun parse(c: Char): StringTplParser = this
+
+        override fun finish(): StringTplParser = this
+    }
+
+    companion object {
+        val Empty = Success(StringTpl())
+    }
 }
 
+
+/**
+ * Parses [StringTpl] from string [s]
+ */
+internal fun stringTpl(s: String): Result<StringTpl, ParseError> {
+    val result = s.fold<StringTplParser>(StringTplParser.Empty, { acc, c -> acc.parse(c) }).finish()
+
+    return when (result) {
+        is StringTplParser.Success -> Success(result.tpl)
+        else -> Failure(ParseError("Invalid StringTpl at .."))
+    }
+}
+
+/**
+ * Validates [l] is a [HitLexeme.Symbol] or fails with a [ParseError]
+ */
 private fun expectSymbol(l: HitLexeme?): Result<HitLexeme.Symbol, ParseError> {
     return when (l) {
         is HitLexeme.Symbol -> Success(l)
@@ -80,7 +178,6 @@ private fun fetch(lex: List<HitLexeme>): ParseResult {
                         }
                 }
         }
-
 }
 
 /**
@@ -226,20 +323,3 @@ fun demo(): Result<HitSyntax, ParseError> {
         )
     )
 }
-
-fun valPath(path: String): Result<ValSpec, InvalidValPath> {
-    val firstDot = path.indexOf('.')
-    val key = if (firstDot >= 0) path.substring(0, firstDot) else path
-    val jsonPath = if (firstDot >= 0) "\$${path.substring(firstDot)}" else "$"
-
-    return if (isValidValKey(key)) {
-        Result
-            .of { JsonPath.compile(jsonPath) }
-            .mapError { InvalidValPath }
-            .map { ValSpec(ValBind(key), it) }
-    } else {
-        Failure(InvalidValPath)
-    }
-}
-
-
