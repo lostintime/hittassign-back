@@ -31,14 +31,14 @@ sealed class RuntimeError : Exception() {
     data class InvalidValueType(val name: ValName, val path: JsonPath) : RuntimeError()
 
     /**
-     * Failed dest fetch value dest [key] from [source]
+     * Failed dest fetch value dest [name] from [source]
      */
-    data class FetchFailed(val key: ValName, val source: Url) : RuntimeError()
+    data class FetchFailed(val name: ValName, val source: Url) : RuntimeError()
 
     /**
      * Failed dest download file
      */
-    data class FileDownloadFailed(val source: Url, val to: FilePath) : RuntimeError()
+    data class DownloadFailed(val source: Url, val dest: FilePath) : RuntimeError()
 
     /**
      * Failed to mkdir at [path]
@@ -191,7 +191,7 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
                         .destination { _, _ -> file }
                         .awaitResponse().third
                         .map { }
-                        .mapError { RuntimeError.FileDownloadFailed(download.source, download.dest) }
+                        .mapError { RuntimeError.DownloadFailed(download.source, download.dest) }
                 } else {
                     Failure(RuntimeError.MkdirFailed(file.parent ?: ""))
                 }
@@ -199,7 +199,7 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
                 Failure(it)
             })
     } catch (e: Exception) {
-        return Failure(RuntimeError.FileDownloadFailed(download.source, download.dest))
+        return Failure(RuntimeError.DownloadFailed(download.source, download.dest))
     }
 }
 

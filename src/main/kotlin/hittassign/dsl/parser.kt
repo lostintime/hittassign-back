@@ -301,7 +301,7 @@ private tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseR
                     "foreach" -> foreach(tail)
                     "download" -> download(tail)
                     "concurrently" -> concurrently(tail)
-                    else -> Failure(ParseError("Unknown symbol \"$head.sym\"")) //
+                    else -> Failure(ParseError("Unknown symbol \"${head.sym}\"")) //
                 }
 
                 return when (s) {
