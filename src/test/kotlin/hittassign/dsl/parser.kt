@@ -90,6 +90,23 @@ class TestDslParser {
     }
 
     @Test
+    fun `parse concurrently`() {
+        assertEquals(
+            Result.Success(
+                Statements(
+                    Concurrently(5, Statements())
+                )
+            ),
+            parse(
+                listOf(
+                    HitLexeme.Symbol("concurrently"),
+                    HitLexeme.Symbol("5")
+                )
+            )
+        )
+    }
+
+    @Test
     fun `multiple statements parsed successfully`() {
         assertEquals(
             Result.Success(

@@ -123,6 +123,28 @@ private fun download(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
+ * Set concurrencly level for child block
+ */
+private fun concurrently(lex: List<HitLexeme>): ParseResult {
+    return expectSymbol(lex.firstOrNull())
+        .flatMap {
+            val n: Int? = it.sym.toIntOrNull()
+
+            if (n != null) {
+                block(emptyList(), lex.drop(1))
+                    .map { block ->
+                        Parsed(
+                            Concurrently(n, block.script),
+                            block.tail
+                        )
+                    }
+            } else {
+                Failure(ParseError("Integer expected at .."))
+            }
+        }
+}
+
+/**
  * Parses block content until Dedent or EOF
  */
 tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseResult {
@@ -140,6 +162,7 @@ tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseResult {
                     "fetch" -> fetch(tail)
                     "foreach" -> foreach(tail)
                     "download" -> download(tail)
+                    "concurrently" -> concurrently(tail)
                     else -> Failure(ParseError("Unknown symbol \"$head.sym\"")) //
                 }
 
