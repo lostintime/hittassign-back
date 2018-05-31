@@ -2,7 +2,6 @@ package hittassign
 
 import com.github.kittinunf.result.Result
 import com.github.kittinunf.result.flatMap
-import com.github.kittinunf.result.map
 import com.github.kittinunf.result.mapError
 import hittassign.runtime.RuntimeContext
 import hittassign.runtime.RuntimeError
@@ -15,7 +14,7 @@ import hittassign.dsl.parse
 import java.io.File
 
 class AppArgs(parser: ArgParser) {
-    val source by parser.positional("script filename")
+    val sources by parser.positionalList("script filenames", 0..Int.MAX_VALUE)
 }
 
 sealed class AppError : Exception() {
@@ -26,9 +25,14 @@ sealed class AppError : Exception() {
 
 fun main(args: Array<String>) = runBlocking<Unit> {
     ArgParser(args).parseInto(::AppArgs).run {
-        val job = async {
+        if (sources.isEmpty()) {
+            // process stdin
             Result
-                .of { File(source).readText() }
+                .of {
+                    System.`in`.bufferedReader().use {
+                        it.readText()
+                    }
+                }
                 .flatMap { lex(it) }
                 .mapError { AppError.ParseError(Exception("Lexing failed")) }
                 .flatMap { parse(it) }
@@ -37,13 +41,28 @@ fun main(args: Array<String>) = runBlocking<Unit> {
                 }, {
                     Result.Failure<Unit, AppError>(AppError.ParseError(it))
                 })
+        } else {
+            sources.forEach { source ->
+                val job = async {
+                    Result
+                        .of { File(source).readText() }
+                        .flatMap { lex(it) }
+                        .mapError { AppError.ParseError(Exception("Lexing failed")) }
+                        .flatMap { parse(it) }
+                        .fold({
+                            execute(it, RuntimeContext()).mapError { AppError.ExecuteError(it) }
+                        }, {
+                            Result.Failure<Unit, AppError>(AppError.ParseError(it))
+                        })
+                }
+
+                job.await().fold({}, {
+                    println("Error: $it")
+                    exitProcess(1)
+                })
+            }
         }
 
-        job.await().fold({
-            exitProcess(0)
-        }, {
-            println("Error: $it")
-            exitProcess(1)
-        })
+        exitProcess(0)
     }
 }
