@@ -7,14 +7,14 @@ import com.github.kittinunf.result.Result.Success
 /**
  * Partial parse result
  */
-data class Parsed(val script: HitSyntax, val tail: List<HitLexeme>)
+private data class Parsed(val script: HitSyntax, val tail: List<HitLexeme>)
 
 /**
  * Parse error type
  */
 data class ParseError(val msg: String) : Exception()
 
-typealias ParseResult = Result<Parsed, ParseError>
+private typealias ParseResult = Result<Parsed, ParseError>
 
 /**
  * Returns true if name is a valid value name
@@ -52,50 +52,66 @@ internal fun valSpec(spec: String): Result<ValSpec, ParseError> {
     }
 }
 
+/**
+ * [StringTpl] parser state machine
+ * Builds a [StringTpl] instance by consuming a [Char] stream
+ */
 private sealed class StringTplParser {
 
+    /**
+     * Consume one more [Char]
+     */
     abstract fun parse(c: Char): StringTplParser
 
+    /**
+     * Finish parsing (EOF)
+     */
     abstract fun finish(): StringTplParser
 
     data class Success(val tpl: StringTpl) : StringTplParser() {
         override fun parse(c: Char): StringTplParser {
             return when (c) {
-                '{' -> OnValRef("", tpl)
+                '{' -> OnValRefPart("", tpl)
                 '}' -> Invalid // Unexpected '}' at ..
-                else -> OnConstStr(Character.toString(c), tpl)
+                else -> OnConstStrPart(Character.toString(c), tpl)
             }
         }
 
         override fun finish(): StringTplParser = this
     }
 
-    data class OnConstStr(val str: String, val tpl: StringTpl) : StringTplParser() {
+    /**
+     * Parsing constant string part
+     */
+    data class OnConstStrPart(val str: String, val tpl: StringTpl) : StringTplParser() {
         override fun parse(c: Char): StringTplParser {
             return when (c) {
                 '{' -> if (str.lastOrNull() == '\\') {
-                    OnConstStr(str.dropLast(1) + c, tpl)
+                    OnConstStrPart(str.dropLast(1) + c, tpl)
                 } else {
-                    OnValRef("", tpl.copy(parts = tpl.parts + ConstStrPart(str)))
+                    OnValRefPart("", tpl.copy(parts = tpl.parts + ConstStrPart(str)))
                 }
                 '}' -> if (str.lastOrNull() == '\\') {
-                    OnConstStr(str.dropLast(1) + c, tpl)
+                    OnConstStrPart(str.dropLast(1) + c, tpl)
                 } else {
                     Invalid // Unexpected '}' at ..
                 }
-                else -> OnConstStr(str + c, tpl)
+                else -> OnConstStrPart(str + c, tpl)
             }
         }
 
         override fun finish(): StringTplParser = Success(tpl.copy(parts = tpl.parts + ConstStrPart(str)))
     }
 
-    data class OnValRef(val spec: String, val tpl: StringTpl) : StringTplParser() {
+    /**
+     * Parsing value reference part
+     */
+    data class OnValRefPart(val spec: String, val tpl: StringTpl) : StringTplParser() {
         override fun parse(c: Char): StringTplParser {
             return when (c) {
                 '}' -> {
                     if (spec.lastOrNull() == '\\') {
-                        OnValRef(spec.dropLast(1) + c, tpl)
+                        OnValRefPart(spec.dropLast(1) + c, tpl)
                     } else {
                         val v = valSpec(spec)
 
@@ -108,18 +124,18 @@ private sealed class StringTplParser {
                 }
                 ',' -> { // comma support
                     if (spec.lastOrNull() == '\\') {
-                        OnValRef(spec.dropLast(1) + c, tpl)
+                        OnValRefPart(spec.dropLast(1) + c, tpl)
                     } else {
                         val v = valSpec(spec)
 
                         if (v is Result.Success) {
-                            OnValRef("", tpl.copy(parts = tpl.parts + ValSpecPart(v.value) + ConstStrPart(",")))
+                            OnValRefPart("", tpl.copy(parts = tpl.parts + ValSpecPart(v.value) + ConstStrPart(",")))
                         } else {
                             Invalid // Invalid ValSpec at ..
                         }
                     }
                 }
-                else -> OnValRef(spec + c, tpl)
+                else -> OnValRefPart(spec + c, tpl)
             }
         }
 
@@ -139,7 +155,7 @@ private sealed class StringTplParser {
 
 
 /**
- * Parses [StringTpl] from string [s]
+ * Parse a [StringTpl] from string [s]
  */
 internal fun stringTpl(s: String): Result<StringTpl, ParseError> {
     val result = s.fold<StringTplParser>(StringTplParser.Empty, { acc, c -> acc.parse(c) }).finish()
@@ -161,7 +177,7 @@ private fun expectSymbol(l: HitLexeme?): Result<HitLexeme.Symbol, ParseError> {
 }
 
 /**
- * Parse debug statement
+ * Parse `debug` statement
  */
 private fun debug(lex: List<HitLexeme>): ParseResult {
     return expectSymbol(lex.firstOrNull())
@@ -172,7 +188,7 @@ private fun debug(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Parse fetch statement
+ * Parse `fetch` statement
  */
 private fun fetch(lex: List<HitLexeme>): ParseResult {
     return expectSymbol(lex.firstOrNull())
@@ -181,7 +197,7 @@ private fun fetch(lex: List<HitLexeme>): ParseResult {
             expectSymbol(lex.drop(1).firstOrNull())
                 .flatMap { valRef(it.sym) }
                 .flatMap { source ->
-                    child_block(lex.drop(2))
+                    childBlock(lex.drop(2))
                         .map { block ->
                             Parsed(
                                 Fetch(bind, source, block.script),
@@ -193,7 +209,7 @@ private fun fetch(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Parse foreach statement
+ * Parse `foreach` statement
  */
 private fun foreach(lex: List<HitLexeme>): ParseResult {
     return expectSymbol(lex.firstOrNull())
@@ -202,7 +218,7 @@ private fun foreach(lex: List<HitLexeme>): ParseResult {
             expectSymbol(lex.drop(1).firstOrNull())
                 .flatMap { valSpec(it.sym) }
                 .flatMap { source ->
-                    child_block(lex.drop(2))
+                    childBlock(lex.drop(2))
                         .map { block ->
                             Parsed(
                                 Foreach(bind, source, block.script),
@@ -214,7 +230,7 @@ private fun foreach(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Parse download statement
+ * Parse `download` statement
  */
 private fun download(lex: List<HitLexeme>): ParseResult {
     return expectSymbol(lex.firstOrNull())
@@ -232,7 +248,7 @@ private fun download(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Set concurrently level for child block
+ * Parse `concurrently` satement
  */
 private fun concurrently(lex: List<HitLexeme>): ParseResult {
     return expectSymbol(lex.firstOrNull())
@@ -240,7 +256,7 @@ private fun concurrently(lex: List<HitLexeme>): ParseResult {
             val n: Int? = it.sym.toIntOrNull()
 
             if (n != null) {
-                child_block(lex.drop(1))
+                childBlock(lex.drop(1))
                     .map { block ->
                         Parsed(
                             Concurrently(n, block.script),
@@ -254,10 +270,10 @@ private fun concurrently(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Parse child block
+ * Parse a child block
  * @return parsed child block or empty statements list if missing
  */
-fun child_block(script: List<HitLexeme>): ParseResult {
+private fun childBlock(script: List<HitLexeme>): ParseResult {
     val head = script.firstOrNull()
 
     return when (head) {
@@ -267,9 +283,9 @@ fun child_block(script: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Parses block content until Dedent or EOF
+ * Parses a statements block until Dedent or EOF
  */
-tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseResult {
+private tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseResult {
     return if (lex.isEmpty()) {
         Success(Parsed(Statements(script), emptyList()))
     } else {

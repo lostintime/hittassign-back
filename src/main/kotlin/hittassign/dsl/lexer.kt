@@ -25,7 +25,7 @@ sealed class HitLexeme {
 object LexError : Exception()
 
 /**
- * State machine dest read string into [HitLexeme] list, char by char
+ * Lexer state machine: parses a [HitLexeme] list from a [Char] stream
  */
 sealed class LexReader {
     /**
@@ -55,7 +55,7 @@ sealed class LexReader {
     }
 
     /**
-     * Reading line ident sate
+     * Reading line ident
      */
     data class ReadingIdent(private val ident: Int, private val acc: Success) :
         LexReader() {
@@ -133,7 +133,6 @@ sealed class LexReader {
             '\t' -> false
             else -> !isLineBreak(c)
         }
-
 
         private fun isLineBreak(c: Char) = c == '\r' || c == '\n'
     }
