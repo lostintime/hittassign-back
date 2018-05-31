@@ -84,7 +84,7 @@ debug Done.
 ## Run with docker
 
 ```bash
-cat sample.hit | docker run -i --rm lostintime/hittasign-back:1.0
+cat sample.hit | docker run -i --rm lostintime/hittassign-back:1.0
 ```
 
 ## License
