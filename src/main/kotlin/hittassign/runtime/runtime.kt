@@ -111,6 +111,9 @@ data class RuntimeContext(
         }
     }
 
+    /**
+     * Render [StringTpl] template within this [RuntimeContext]
+     */
     fun renderStringTpl(tpl: StringTpl): Result<String, RuntimeError> {
         return tpl.parts
             .fold(
@@ -122,9 +125,7 @@ data class RuntimeContext(
                     }
                 }
             )
-            .map {
-                it.toString()
-            }
+            .map { it.toString() }
     }
 }
 
