@@ -31,7 +31,7 @@ class TestDslParser {
                     Fetch(
                         ValBind("n"),
                         StringTpl(ConstStrPart("http://test.com/api.json")),
-                        Statements()
+                        Statements(Debug(StringTpl(ConstStrPart("hello"))))
                     )
                 )
             ),
@@ -39,7 +39,11 @@ class TestDslParser {
                 listOf(
                     HitLexeme.Symbol("fetch"),
                     HitLexeme.Symbol("n"),
-                    HitLexeme.Symbol("http://test.com/api.json")
+                    HitLexeme.Symbol("http://test.com/api.json"),
+                    HitLexeme.Ident,
+                    HitLexeme.Symbol("debug"),
+                    HitLexeme.Symbol("hello"),
+                    HitLexeme.Dedent
                 )
             )
         )
@@ -54,7 +58,7 @@ class TestDslParser {
                     Foreach(
                         ValBind("n"),
                         ValSpec(ValBind("u"), JsonPath.compile("$")),
-                        Statements()
+                        Statements(Debug(StringTpl(ConstStrPart("hello"))))
                     )
                 )
             ),
@@ -62,7 +66,11 @@ class TestDslParser {
                 listOf(
                     HitLexeme.Symbol("foreach"),
                     HitLexeme.Symbol("n"),
-                    HitLexeme.Symbol("u")
+                    HitLexeme.Symbol("u"),
+                    HitLexeme.Ident,
+                    HitLexeme.Symbol("debug"),
+                    HitLexeme.Symbol("hello"),
+                    HitLexeme.Dedent
                 )
             )
         )
@@ -94,13 +102,17 @@ class TestDslParser {
         assertEquals(
             Result.Success(
                 Statements(
-                    Concurrently(5, Statements())
+                    Concurrently(5, Statements(Debug(StringTpl(ConstStrPart("hello")))))
                 )
             ),
             parse(
                 listOf(
                     HitLexeme.Symbol("concurrently"),
-                    HitLexeme.Symbol("5")
+                    HitLexeme.Symbol("5"),
+                    HitLexeme.Ident,
+                    HitLexeme.Symbol("debug"),
+                    HitLexeme.Symbol("hello"),
+                    HitLexeme.Dedent
                 )
             )
         )

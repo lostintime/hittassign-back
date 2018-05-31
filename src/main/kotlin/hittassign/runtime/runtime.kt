@@ -151,7 +151,6 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
             // execute child concurrently with new context
             return execute(fetch.script, newCtx)
         } catch (e: Exception) {
-            // println(e)
             Result.Failure(ValueFetchError(fetch.key, fetch.source))
         }
     }, {

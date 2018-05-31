@@ -168,7 +168,7 @@ private fun fetch(lex: List<HitLexeme>): ParseResult {
             expectSymbol(lex.drop(1).firstOrNull())
                 .flatMap { valRef(it.sym) }
                 .flatMap { source ->
-                    block(emptyList(), lex.drop(2))
+                    child_block(lex.drop(2))
                         .map { block ->
                             Parsed(
                                 Fetch(bind, source, block.script),
@@ -189,7 +189,7 @@ private fun foreach(lex: List<HitLexeme>): ParseResult {
             expectSymbol(lex.drop(1).firstOrNull())
                 .flatMap { valSpec(it.sym) }
                 .flatMap { source ->
-                    block(emptyList(), lex.drop(2))
+                    child_block(lex.drop(2))
                         .map { block ->
                             Parsed(
                                 Foreach(bind, source, block.script),
@@ -219,7 +219,7 @@ private fun download(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Set concurrencly level for child block
+ * Set concurrently level for child block
  */
 private fun concurrently(lex: List<HitLexeme>): ParseResult {
     return expectSymbol(lex.firstOrNull())
@@ -227,7 +227,7 @@ private fun concurrently(lex: List<HitLexeme>): ParseResult {
             val n: Int? = it.sym.toIntOrNull()
 
             if (n != null) {
-                block(emptyList(), lex.drop(1))
+                child_block(lex.drop(1))
                     .map { block ->
                         Parsed(
                             Concurrently(n, block.script),
@@ -238,6 +238,19 @@ private fun concurrently(lex: List<HitLexeme>): ParseResult {
                 Failure(ParseError("Integer expected at .."))
             }
         }
+}
+
+/**
+ * Parse child block
+ * @return parsed child block or empty statements list if missing
+ */
+fun child_block(script: List<HitLexeme>): ParseResult {
+    val head = script.firstOrNull()
+
+    return when (head) {
+        is HitLexeme.Ident -> block(emptyList(), script.drop(1))
+        else -> Success(Parsed(Statements(), script))
+    }
 }
 
 /**

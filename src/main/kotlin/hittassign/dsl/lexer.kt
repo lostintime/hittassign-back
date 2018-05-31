@@ -102,7 +102,11 @@ sealed class LexReader {
             // continue reading symbol
                 isSymbolChar(c) -> ReadingSymbol(sym + c, ident, acc)
             // finished reading symbol, waiting for next
-                else -> WaitingSymbol(ident, acc.copy(tokens = acc.tokens + HitLexeme.Symbol(sym))).read(c)
+                else -> if (sym.lastOrNull() == '\\') {
+                    return ReadingSymbol(sym.dropLast(1) + c, ident, acc)
+                } else {
+                    WaitingSymbol(ident, acc.copy(tokens = acc.tokens + HitLexeme.Symbol(sym))).read(c)
+                }
             }
         }
 

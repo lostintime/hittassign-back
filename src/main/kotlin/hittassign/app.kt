@@ -2,6 +2,7 @@ package hittassign
 
 import com.github.kittinunf.result.Result
 import com.github.kittinunf.result.flatMap
+import com.github.kittinunf.result.map
 import com.github.kittinunf.result.mapError
 import hittassign.runtime.RuntimeContext
 import hittassign.runtime.RuntimeError
@@ -16,7 +17,6 @@ import java.io.File
 class AppArgs(parser: ArgParser) {
     val source by parser.positional("script filename")
 }
-
 
 sealed class AppError : Exception() {
     data class ParseError(val e: Exception) : AppError()

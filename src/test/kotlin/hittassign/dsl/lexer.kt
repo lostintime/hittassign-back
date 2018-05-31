@@ -20,6 +20,14 @@ class TestLexReader {
     }
 
     @Test
+    fun `it supports space escaping`() {
+        assertEquals(
+            Result.Success(listOf(HitLexeme.Symbol("hello world"))),
+            lex("hello\\ world")
+        )
+    }
+
+    @Test
     fun `ignores empty lines`() {
         assertEquals(
             Result.Success(
