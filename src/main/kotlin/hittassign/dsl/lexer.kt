@@ -22,7 +22,17 @@ sealed class HitLexeme {
     data class Symbol(val sym: String) : HitLexeme() // symbol or string literal
 }
 
-object LexError : Exception()
+sealed class LexError : Exception() {
+    /**
+     * Invalid ident found in source code
+     */
+    object InvalidIdent : LexError()
+
+    /**
+     * Parser finished with invalid sate
+     */
+    object InvalidFinalState : LexError()
+}
 
 /**
  * Lexer state machine: parses a [HitLexeme] list from a [Char] stream
@@ -84,7 +94,7 @@ sealed class LexReader {
                     ident == (acc.ident + IDENT_SIZE) -> WaitingSymbol(ident, acc.addIdent()).read(c)
                 // add dedent
                     ident < acc.ident -> WaitingSymbol(ident, acc.addDedent()).read(c)
-                    else -> Failure // Invalid ident
+                    else -> Failure(LexError.InvalidIdent) // Invalid ident
                 }
                 else -> this // ignore char, waiting symbol
             }
@@ -114,10 +124,9 @@ sealed class LexReader {
     }
 
     /**
-     * Reading failure state
-     * TODO: add error details
+     * Failure state, ignores all inputs
      */
-    object Failure : LexReader() {
+    data class Failure(val err: LexError) : LexReader() {
         override fun read(c: Char): LexReader = this
 
         override fun finish(): LexReader = this
@@ -134,7 +143,7 @@ sealed class LexReader {
             else -> !isLineBreak(c)
         }
 
-        private fun isLineBreak(c: Char) = c == '\r' || c == '\n'
+        private fun isLineBreak(c: Char) = c == '\n'
     }
 }
 
@@ -146,6 +155,7 @@ fun lex(str: String): Result<List<HitLexeme>, LexError> {
 
     return when (acc) {
         is LexReader.Success -> Result.Success(acc.tokens)
-        else -> Result.Failure(LexError) // FIXME add detailed error message
+        is LexReader.Failure -> Result.Failure(acc.err)
+        else -> Result.Failure(LexError.InvalidFinalState)
     }
 }

@@ -72,7 +72,7 @@ private sealed class StringTplParser {
         override fun parse(c: Char): StringTplParser {
             return when (c) {
                 '{' -> OnValRefPart("", tpl)
-                '}' -> Invalid // Unexpected '}' at ..
+                '}' -> Failure // Unexpected '}' at ..
                 else -> OnConstStrPart(Character.toString(c), tpl)
             }
         }
@@ -94,7 +94,7 @@ private sealed class StringTplParser {
                 '}' -> if (str.lastOrNull() == '\\') {
                     OnConstStrPart(str.dropLast(1) + c, tpl)
                 } else {
-                    Invalid // Unexpected '}' at ..
+                    Failure // Unexpected '}' at ..
                 }
                 else -> OnConstStrPart(str + c, tpl)
             }
@@ -118,7 +118,7 @@ private sealed class StringTplParser {
                         if (v is Result.Success) {
                             Success(tpl.copy(parts = tpl.parts + ValSpecPart(v.value)))
                         } else {
-                            Invalid // Invalid ValSpec at ..
+                            Failure // Invalid ValSpec at ..
                         }
                     }
                 }
@@ -131,7 +131,7 @@ private sealed class StringTplParser {
                         if (v is Result.Success) {
                             OnValRefPart("", tpl.copy(parts = tpl.parts + ValSpecPart(v.value) + ConstStrPart(",")))
                         } else {
-                            Invalid // Invalid ValSpec at ..
+                            Failure // Invalid ValSpec at ..
                         }
                     }
                 }
@@ -139,10 +139,10 @@ private sealed class StringTplParser {
             }
         }
 
-        override fun finish(): StringTplParser = Invalid // referenced values must be enclosed with '{', '}'
+        override fun finish(): StringTplParser = Failure // referenced values must be enclosed with '{', '}'
     }
 
-    object Invalid : StringTplParser() {
+    object Failure : StringTplParser() {
         override fun parse(c: Char): StringTplParser = this
 
         override fun finish(): StringTplParser = this
@@ -248,7 +248,7 @@ private fun download(lex: List<HitLexeme>): ParseResult {
 }
 
 /**
- * Parse `concurrently` satement
+ * Parse `concurrently` statement
  */
 private fun concurrently(lex: List<HitLexeme>): ParseResult {
     return expectSymbol(lex.firstOrNull())
@@ -316,7 +316,7 @@ private tailrec fun block(script: List<HitSyntax>, lex: List<HitLexeme>): ParseR
 }
 
 /**
- * Parse input lexemes list [lex] into AST
+ * Parse input lexemes list [lex] into [HitSyntax] AST
  */
 fun parse(lex: List<HitLexeme>): Result<HitSyntax, ParseError> {
     return block(emptyList(), lex).map { it.script }

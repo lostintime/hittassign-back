@@ -127,6 +127,11 @@ data class ValueFetchError(val key: ValName, val source: Url) : RuntimeError()
 data class FileDownloadError(val source: Url, val to: FilePath) : RuntimeError()
 
 /**
+ * Failed to mkdir at [path]
+ */
+data class MkdirError(val path: String) : RuntimeError()
+
+/**
  * Executes [fetch] command:
  *  - Loads Json from [Fetch.source]
  *  - Bind Json dest [Fetch.name] within new [RuntimeContext]
@@ -146,7 +151,7 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
         try {
             // 3. build new context using fetched json
             val jsonContext = JsonPath.parse(jsonStr)
-            val newCtx = ctx.copy(values = mapOf(fetch.name to jsonContext.json()))
+            val newCtx = ctx.copy(values = mapOf(fetch.name to jsonContext.json()), parent = ctx)
 
             // execute child concurrently with new context
             return execute(fetch.script, newCtx)
@@ -181,14 +186,17 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
                 val dest = p.second
 
                 // 2. download and parse json from url
-                val result = src
-                    .httpDownload()
-                    .destination { _, _ -> File(dest) }
-                    .awaitResponse()
-
-                return result.third
-                    .map { }
-                    .mapError { FileDownloadError(download.source, download.dest) }
+                val file = File(dest)
+                if (file.parentFile?.mkdirs() == true) {
+                    return src
+                        .httpDownload()
+                        .destination { _, _ -> file }
+                        .awaitResponse().third
+                        .map { }
+                        .mapError { FileDownloadError(download.source, download.dest) }
+                } else {
+                    Result.Failure(MkdirError(file.parent ?: ""))
+                }
             }, {
                 Result.Failure(ValueReadError(it))
             })
@@ -207,7 +215,7 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
         .fold({ values ->
             val jobs = values
                 // 2. for each element - build new ctx and execute concurrently using it
-                .map { ctx.copy(values = mapOf(foreach.name to it)) }
+                .map { ctx.copy(values = mapOf(foreach.name to it), parent = ctx) }
                 // execute tasks
                 .fold(emptyList<Deferred<Result<Unit, RuntimeError>>>(), { acc, newCtx ->
                     if (acc.size < newCtx.concurrency) {
@@ -239,7 +247,7 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
  * Executes [Concurrently.script] by limiting concurrency level dest [Concurrently.level]
  */
 private suspend fun concurrently(concurrently: Concurrently, ctx: RuntimeContext) =
-    execute(concurrently.script, ctx.copy(concurrency = concurrently.level))
+    execute(concurrently.script, ctx.copy(concurrency = concurrently.level, parent = ctx))
 
 
 /**
