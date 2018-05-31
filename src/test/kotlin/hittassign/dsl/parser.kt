@@ -170,6 +170,21 @@ class TestStringTpl {
             stringTpl("{user.name}")
         )
     }
+
+    @Test
+    fun `parse StringTpl with comma separated values`() {
+        assertEquals(
+            Result.Success(
+                StringTpl(
+                    ConstStrPart("ll="),
+                    ValSpecPart(ValSpec(ValBind("l"), JsonPath.compile("$.lat"))),
+                    ConstStrPart(","),
+                    ValSpecPart(ValSpec(ValBind("l"), JsonPath.compile("$.lng")))
+                )
+            ),
+            stringTpl("ll={l.lat,l.lng}")
+        )
+    }
 }
 
 class TestJsonPath {
