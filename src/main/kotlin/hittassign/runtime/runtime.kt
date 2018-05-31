@@ -4,7 +4,12 @@ import awaitResponse
 import awaitStringResult
 import com.github.kittinunf.fuel.httpDownload
 import com.github.kittinunf.fuel.httpGet
-import com.github.kittinunf.result.*
+import com.github.kittinunf.result.Result
+import com.github.kittinunf.result.Result.Success
+import com.github.kittinunf.result.Result.Failure
+import com.github.kittinunf.result.flatMap
+import com.github.kittinunf.result.map
+import com.github.kittinunf.result.mapError
 import hittassign.dsl.*
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
@@ -16,14 +21,14 @@ import java.io.File
 sealed class GetValError : Exception()
 
 /**
- * Value for given ValName [key] not found withing [RuntimeContext.values]
+ * Value for given ValName [name] not found withing [RuntimeContext.values]
  */
-data class ValBindNotFound(val key: ValName) : GetValError()
+data class ValBindNotFound(val name: ValName) : GetValError()
 
 /**
- * Value with name=[key] found in [RuntimeContext.values] but was unable dest load required type at [path]
+ * Value with name=[name] found in [RuntimeContext.values] but was unable dest load required type at [path]
  */
-data class InvalidValBindType(val key: ValName, val path: JsonPath) : GetValError()
+data class InvalidValBindType(val name: ValName, val path: JsonPath) : GetValError()
 
 /**
  * App execution context tree.
@@ -32,7 +37,7 @@ data class InvalidValBindType(val key: ValName, val path: JsonPath) : GetValErro
 data class RuntimeContext(
     private val values: Map<ValName, Any> = mapOf(),
     private val parent: RuntimeContext? = null,
-    val concurrency: Int = 32 // just a magic number
+    val concurrency: Int = 1
 ) {
     /**
      * Get value from values map
@@ -50,7 +55,7 @@ data class RuntimeContext(
                     InvalidValBindType(spec.name, spec.path)
                 }
         } else {
-            parent?.getValue(spec) ?: Result.Failure(ValBindNotFound(spec.name))
+            parent?.getValue(spec) ?: Failure(ValBindNotFound(spec.name))
         }
     }
 
@@ -85,14 +90,14 @@ data class RuntimeContext(
                     InvalidValBindType(spec.name, spec.path)
                 }
         } else {
-            return Result.Failure(ValBindNotFound(spec.name))
+            return Failure(ValBindNotFound(spec.name))
         }
     }
 
     fun renderStringTpl(tpl: StringTpl): Result<String, GetValError> {
         return tpl.parts
             .fold(
-                Result.Success(StringBuilder()),
+                Success(StringBuilder()),
                 fun(acc, part): Result<StringBuilder, GetValError> {
                     return when (part) {
                         is ConstStrPart -> acc.map { it.append(part.str) }
@@ -156,10 +161,10 @@ private suspend fun fetch(fetch: Fetch, ctx: RuntimeContext): Result<Unit, Runti
             // execute child concurrently with new context
             return execute(fetch.script, newCtx)
         } catch (e: Exception) {
-            Result.Failure(ValueFetchError(fetch.name, fetch.source))
+            Failure(ValueFetchError(fetch.name, fetch.source))
         }
     }, {
-        Result.Failure(ValueReadError(it))
+        Failure(ValueReadError(it))
     })
 }
 
@@ -187,7 +192,7 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
 
                 // 2. download and parse json from url
                 val file = File(dest)
-                if (file.parentFile?.mkdirs() == true) {
+                if (file.parentFile?.exists() == true || file.parentFile?.mkdirs() == true) {
                     return src
                         .httpDownload()
                         .destination { _, _ -> file }
@@ -195,13 +200,13 @@ private suspend fun download(download: Download, ctx: RuntimeContext): Result<Un
                         .map { }
                         .mapError { FileDownloadError(download.source, download.dest) }
                 } else {
-                    Result.Failure(MkdirError(file.parent ?: ""))
+                    Failure(MkdirError(file.parent ?: ""))
                 }
             }, {
-                Result.Failure(ValueReadError(it))
+                Failure(ValueReadError(it))
             })
     } catch (e: Exception) {
-        return Result.Failure(FileDownloadError(download.source, download.dest))
+        return Failure(FileDownloadError(download.source, download.dest))
     }
 }
 
@@ -221,15 +226,14 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
                     if (acc.size < newCtx.concurrency) {
                         acc.plus(async { execute(foreach.script, newCtx) })
                     } else {
-                        val job = acc.firstOrNull()
-                        if (job != null) {
-                            // await first task
-                            // TODO: stop execution if job failed, cancel already running jobs
-                            job.await()
-                            acc.drop(1).plus(async { execute(foreach.script, newCtx) })
-                        } else {
-                            acc.plus(async { execute(foreach.script, newCtx) })
+                        for (j in acc) {
+                            // await one, and add one more
+                            // TODO: stop sequence if failed
+                            j.await()
+                            break
                         }
+
+                        acc.drop(1).plus(async { execute(foreach.script, newCtx) })
                     }
                 })
                 .map {
@@ -237,9 +241,9 @@ private suspend fun foreach(foreach: Foreach, ctx: RuntimeContext): Result<Unit,
                 }
 
             // 3. check for failed jobs dest fail
-            jobs.find { it is Result.Failure } ?: Result.Success(Unit)
+            jobs.find { it is Failure } ?: Success(Unit)
         }, {
-            Result.Failure(ValueReadError(it))
+            Failure(ValueReadError(it))
         })
 }
 
@@ -262,19 +266,19 @@ private suspend fun statements(list: List<HitSyntax>, ctx: RuntimeContext): Resu
             } else {
                 for (j in acc) {
                     // await one, and add one more
-                    // FIXME: stop sequence if failed
+                    // TODO: stop sequence if failed
                     j.await()
                     break
                 }
 
-                acc.plus(async { execute(s, ctx) })
+                acc.drop(1).plus(async { execute(s, ctx) })
             }
         })
         .map {
             it.await()
         }
         // 2. check for failed results dest stop execution
-        .find { it is Result.Failure } ?: Result.Success(Unit)
+        .find { it is Failure } ?: Success(Unit)
 }
 
 /**
